@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>タスク＆タイムスケジュール管理</title>
   <!-- Tailwind CSS & Lucide Icons -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -14,6 +14,12 @@
     :root {
       --slot-height: 20px;
       --hour-height: 80px;
+    }
+    /* スマホ画面の見切れ・スクロール防止 */
+    body {
+      height: 100vh;
+      height: 100dvh;
+      padding-top: env(safe-area-inset-top);
     }
     .timeline-lane {
       background-size: 100% 20px;
@@ -35,54 +41,54 @@
     }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-800 h-screen flex flex-col overflow-hidden select-none">
+<body class="bg-gray-100 text-gray-800 flex flex-col overflow-hidden select-none">
 
   <!-- ヘッダー -->
-  <header class="bg-white border-b border-gray-200 px-4 py-2 flex flex-wrap items-center justify-between gap-2 z-30 shadow-sm">
-    <div class="flex items-center gap-3">
-      <h1 class="text-base font-bold flex items-center gap-2 text-gray-800">
-        <i data-lucide="calendar-clock" class="w-5 h-5 text-blue-600"></i> PlanSync Pro
+  <header class="bg-white border-b border-gray-200 px-3 py-2 flex flex-wrap items-center justify-between gap-2 z-30 shadow-sm flex-shrink-0">
+    <div class="flex items-center gap-2">
+      <h1 class="text-sm sm:text-base font-bold flex items-center gap-1.5 text-gray-800">
+        <i data-lucide="calendar-clock" class="w-4 h-4 sm:w-5 sm:h-5 text-blue-600"></i> PlanSync
       </h1>
-      <div class="bg-indigo-50 p-1 rounded-lg flex gap-1">
-        <button id="viewBtnDaily" onclick="switchView('daily')" class="px-3 py-1 text-xs font-semibold rounded-md bg-white text-blue-600 shadow-sm transition">日別</button>
-        <button id="viewBtnCalendar" onclick="switchView('calendar')" class="px-3 py-1 text-xs font-semibold rounded-md text-gray-600 hover:text-blue-600 transition">カレンダー</button>
-        <button id="viewBtnMatrix" onclick="switchView('matrix')" class="px-3 py-1 text-xs font-semibold rounded-md text-gray-600 hover:text-blue-600 transition">マトリクス</button>
+      <div class="bg-indigo-50 p-0.5 sm:p-1 rounded-lg flex gap-0.5 sm:gap-1">
+        <button id="viewBtnDaily" onclick="switchView('daily')" class="px-2 sm:px-3 py-1 text-xs font-semibold rounded-md bg-white text-blue-600 shadow-sm transition">日別</button>
+        <button id="viewBtnCalendar" onclick="switchView('calendar')" class="px-2 sm:px-3 py-1 text-xs font-semibold rounded-md text-gray-600 hover:text-blue-600 transition">月間</button>
+        <button id="viewBtnMatrix" onclick="switchView('matrix')" class="px-2 sm:px-3 py-1 text-xs font-semibold rounded-md text-gray-600 hover:text-blue-600 transition">分類</button>
       </div>
     </div>
 
-    <div class="flex items-center gap-1.5 flex-wrap">
-      <span id="syncBadge" class="hidden text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300 items-center gap-1">
+    <div class="flex items-center gap-1 flex-wrap">
+      <span id="syncBadge" class="hidden text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full border border-emerald-300 items-center gap-1">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> 同期中: <span id="syncKeyDisplay"></span>
       </span>
 
-      <button onclick="exportData()" class="px-2 py-1 text-xs bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 flex items-center gap-1 font-medium">
-        <i data-lucide="download" class="w-3.5 h-3.5"></i> 吐き出し
+      <button onclick="exportData()" class="px-1.5 py-1 text-xs bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 flex items-center gap-1 font-medium" title="ファイル保存">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i>
       </button>
-      <label class="px-2 py-1 text-xs bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 flex items-center gap-1 font-medium cursor-pointer">
-        <i data-lucide="upload" class="w-3.5 h-3.5"></i> 読込み
+      <label class="px-1.5 py-1 text-xs bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 flex items-center gap-1 font-medium cursor-pointer" title="ファイル読込">
+        <i data-lucide="upload" class="w-3.5 h-3.5"></i>
         <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(event)">
       </label>
 
-      <button onclick="openSyncModal()" class="px-2.5 py-1 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 flex items-center gap-1 font-medium">
-        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 端末同期
+      <button onclick="openSyncModal()" class="px-2 py-1 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 flex items-center gap-1 font-medium">
+        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 同期
       </button>
-      <button onclick="openRoutineModal()" class="px-2.5 py-1 text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded-md hover:bg-purple-100 flex items-center gap-1 font-medium">
-        <i data-lucide="repeat" class="w-3.5 h-3.5"></i> ルーティン
+      <button onclick="openRoutineModal()" class="px-2 py-1 text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded-md hover:bg-purple-100 flex items-center gap-1 font-medium">
+        <i data-lucide="repeat" class="w-3.5 h-3.5"></i> 定例
       </button>
 
-      <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-md p-0.5 ml-1">
-        <button onclick="changeDate(-1)" class="p-1 hover:bg-gray-200 rounded text-gray-600"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-        <input type="date" id="datePicker" class="text-xs bg-transparent border-none outline-none font-medium px-1 text-gray-700" onchange="onDatePickerChange(this.value)">
-        <button onclick="changeDate(1)" class="p-1 hover:bg-gray-200 rounded text-gray-600"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
-        <button onclick="goToToday()" class="text-xs px-2 py-0.5 bg-white border border-gray-200 rounded text-gray-600 hover:bg-gray-50 font-medium">今日</button>
+      <div class="flex items-center gap-0.5 bg-gray-50 border border-gray-200 rounded-md p-0.5">
+        <button onclick="changeDate(-1)" class="p-1 hover:bg-gray-200 rounded text-gray-600"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button>
+        <input type="date" id="datePicker" class="text-xs bg-transparent border-none outline-none font-medium px-0.5 text-gray-700 w-24 sm:w-auto" onchange="onDatePickerChange(this.value)">
+        <button onclick="changeDate(1)" class="p-1 hover:bg-gray-200 rounded text-gray-600"><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
+        <button onclick="goToToday()" class="text-[10px] sm:text-xs px-1.5 py-0.5 bg-white border border-gray-200 rounded text-gray-600 hover:bg-gray-50 font-medium">今日</button>
       </div>
     </div>
   </header>
 
   <!-- モバイルタブ -->
-  <div id="mobileTabBar" class="sm:hidden flex bg-white border-b border-gray-200 w-full">
-    <button id="mobTabSched" onclick="switchMobileTab('schedule')" class="flex-1 py-2 text-center text-xs font-semibold text-blue-600 border-b-2 border-blue-600 bg-blue-50/50">タイムライン</button>
-    <button id="mobTabInbox" onclick="switchMobileTab('inbox')" class="flex-1 py-2 text-center text-xs font-semibold text-gray-500 border-b-2 border-transparent">タスクBOX</button>
+  <div id="mobileTabBar" class="sm:hidden flex bg-white border-b border-gray-200 w-full flex-shrink-0">
+    <button id="mobTabSched" onclick="switchMobileTab('schedule')" class="flex-1 py-1.5 text-center text-xs font-semibold text-blue-600 border-b-2 border-blue-600 bg-blue-50/50">タイムライン</button>
+    <button id="mobTabInbox" onclick="switchMobileTab('inbox')" class="flex-1 py-1.5 text-center text-xs font-semibold text-gray-500 border-b-2 border-transparent">タスクBOX</button>
   </div>
 
   <!-- メインコンテナ -->
@@ -91,7 +97,7 @@
     <!-- デイリー VIEW -->
     <div id="dailyView" class="w-full h-full flex flex-col sm:flex-row">
       <div id="scheduleArea" class="flex-1 flex flex-col bg-white border-r border-gray-200 h-full overflow-hidden">
-        <div class="grid grid-cols-[55px_1fr_1fr] bg-gray-50 border-b border-gray-200 text-xs font-bold text-center divide-x divide-gray-200 py-2">
+        <div class="grid grid-cols-[55px_1fr_1fr] bg-gray-50 border-b border-gray-200 text-xs font-bold text-center divide-x divide-gray-200 py-1.5 flex-shrink-0">
           <div class="text-gray-500 flex items-center justify-center"><i data-lucide="clock" class="w-3.5 h-3.5"></i></div>
           <div class="text-blue-600 flex items-center justify-center gap-1">
             計画 (Plan) <span id="planTotal" class="text-[10px] font-normal bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full">0h 0m</span>
@@ -149,60 +155,60 @@
     </div>
 
     <!-- カレンダー VIEW -->
-    <div id="calendarView" class="hidden w-full h-full bg-white flex-col p-4 overflow-y-auto">
-      <div class="flex justify-between items-center mb-4">
+    <div id="calendarView" class="hidden w-full h-full bg-white flex-col p-3 overflow-y-auto">
+      <div class="flex justify-between items-center mb-3">
         <div class="flex items-center gap-2">
           <button onclick="changeCalendarMonth(-1)" class="p-1 hover:bg-gray-100 rounded border border-gray-200 text-gray-600"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-          <h2 id="calendarMonthTitle" class="text-lg font-bold text-gray-800 min-w-[120px] text-center"></h2>
+          <h2 id="calendarMonthTitle" class="text-base sm:text-lg font-bold text-gray-800 min-w-[100px] text-center"></h2>
           <button onclick="changeCalendarMonth(1)" class="p-1 hover:bg-gray-100 rounded border border-gray-200 text-gray-600"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
         </div>
-        <button onclick="openCalendarModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-md flex items-center gap-1">
-          <i data-lucide="plus" class="w-4 h-4"></i> 大枠予定を追加
+        <button onclick="openCalendarModal()" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-md flex items-center gap-1">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i> 大枠予定
         </button>
       </div>
       <div id="calendarGrid" class="grid grid-cols-7 border-t border-l border-gray-200 rounded-lg overflow-hidden flex-1"></div>
     </div>
 
     <!-- マトリクス VIEW -->
-    <div id="matrixView" class="hidden w-full h-full bg-gray-100 flex-col p-4 overflow-y-auto">
-      <div class="mb-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+    <div id="matrixView" class="hidden w-full h-full bg-gray-100 flex-col p-3 overflow-y-auto">
+      <div class="mb-2 bg-white p-2.5 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-1.5">
         <div class="flex justify-between items-center">
           <span class="text-xs font-bold text-gray-700 flex items-center gap-1">
-            <i data-lucide="inbox" class="w-4 h-4 text-indigo-500"></i> 未整理タスクトレイ (ドラッグ/ボタンで領域へ振り分け)
+            <i data-lucide="inbox" class="w-3.5 h-3.5 text-indigo-500"></i> 未整理タスクトレイ
           </span>
-          <span class="text-[10px] text-gray-400">日別のタスクもここに表示されます</span>
+          <span class="text-[10px] text-gray-400">タップ/ドラッグで配置</span>
         </div>
-        <div id="matrixInboxTray" class="flex items-center gap-2 overflow-x-auto min-h-[42px] p-1 bg-gray-50 rounded border border-dashed border-gray-300"></div>
+        <div id="matrixInboxTray" class="flex items-center gap-2 overflow-x-auto min-h-[38px] p-1 bg-gray-50 rounded border border-dashed border-gray-300"></div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1 min-h-[500px]">
-        <div class="bg-red-50/50 border border-red-200 rounded-lg p-3 flex flex-col min-h-[200px]">
-          <div class="flex justify-between items-center mb-2">
-            <span class="text-xs font-bold text-red-700 flex items-center gap-1"><i data-lucide="alert-circle" class="w-4 h-4"></i> Q1: 第1領域 (重要 × 緊急)</span>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 flex-1 min-h-[450px]">
+        <div class="bg-red-50/50 border border-red-200 rounded-lg p-2.5 flex flex-col min-h-[180px]">
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="text-xs font-bold text-red-700 flex items-center gap-1"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> Q1: 第1領域 (重要 × 緊急)</span>
             <button onclick="quickAddMatrixTask('q1')" class="text-[10px] bg-red-100 hover:bg-red-200 text-red-800 font-bold px-1.5 py-0.5 rounded">+ 追加</button>
           </div>
-          <div id="matrixZoneQ1" data-zone="q1" class="matrix-zone flex-1 flex flex-col gap-2 overflow-y-auto p-1 border border-dashed border-red-200 rounded bg-white/50"></div>
+          <div id="matrixZoneQ1" data-zone="q1" class="matrix-zone flex-1 flex flex-col gap-1.5 overflow-y-auto p-1 border border-dashed border-red-200 rounded bg-white/50"></div>
         </div>
-        <div class="bg-blue-50/50 border border-blue-200 rounded-lg p-3 flex flex-col min-h-[200px]">
-          <div class="flex justify-between items-center mb-2">
-            <span class="text-xs font-bold text-blue-700 flex items-center gap-1"><i data-lucide="calendar" class="w-4 h-4"></i> Q2: 第2領域 (重要 × 非緊急)</span>
+        <div class="bg-blue-50/50 border border-blue-200 rounded-lg p-2.5 flex flex-col min-h-[180px]">
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="text-xs font-bold text-blue-700 flex items-center gap-1"><i data-lucide="calendar" class="w-3.5 h-3.5"></i> Q2: 第2領域 (重要 × 非緊急)</span>
             <button onclick="quickAddMatrixTask('q2')" class="text-[10px] bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold px-1.5 py-0.5 rounded">+ 追加</button>
           </div>
-          <div id="matrixZoneQ2" data-zone="q2" class="matrix-zone flex-1 flex flex-col gap-2 overflow-y-auto p-1 border border-dashed border-blue-200 rounded bg-white/50"></div>
+          <div id="matrixZoneQ2" data-zone="q2" class="matrix-zone flex-1 flex flex-col gap-1.5 overflow-y-auto p-1 border border-dashed border-blue-200 rounded bg-white/50"></div>
         </div>
-        <div class="bg-amber-50/50 border border-amber-200 rounded-lg p-3 flex flex-col min-h-[200px]">
-          <div class="flex justify-between items-center mb-2">
-            <span class="text-xs font-bold text-amber-700 flex items-center gap-1"><i data-lucide="user-check" class="w-4 h-4"></i> Q3: 第3領域 (非重要 × 緊急)</span>
+        <div class="bg-amber-50/50 border border-amber-200 rounded-lg p-2.5 flex flex-col min-h-[180px]">
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="text-xs font-bold text-amber-700 flex items-center gap-1"><i data-lucide="user-check" class="w-3.5 h-3.5"></i> Q3: 第3領域 (非重要 × 緊急)</span>
             <button onclick="quickAddMatrixTask('q3')" class="text-[10px] bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold px-1.5 py-0.5 rounded">+ 追加</button>
           </div>
-          <div id="matrixZoneQ3" data-zone="q3" class="matrix-zone flex-1 flex flex-col gap-2 overflow-y-auto p-1 border border-dashed border-amber-200 rounded bg-white/50"></div>
+          <div id="matrixZoneQ3" data-zone="q3" class="matrix-zone flex-1 flex flex-col gap-1.5 overflow-y-auto p-1 border border-dashed border-amber-200 rounded bg-white/50"></div>
         </div>
-        <div class="bg-gray-100 border border-gray-300 rounded-lg p-3 flex flex-col min-h-[200px]">
-          <div class="flex justify-between items-center mb-2">
-            <span class="text-xs font-bold text-gray-600 flex items-center gap-1"><i data-lucide="trash-2" class="w-4 h-4"></i> Q4: 第4領域 (非重要 × 非緊急)</span>
+        <div class="bg-gray-100 border border-gray-300 rounded-lg p-2.5 flex flex-col min-h-[180px]">
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="text-xs font-bold text-gray-600 flex items-center gap-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Q4: 第4領域 (非重要 × 非緊急)</span>
             <button onclick="quickAddMatrixTask('q4')" class="text-[10px] bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold px-1.5 py-0.5 rounded">+ 追加</button>
           </div>
-          <div id="matrixZoneQ4" data-zone="q4" class="matrix-zone flex-1 flex flex-col gap-2 overflow-y-auto p-1 border border-dashed border-gray-300 rounded bg-white/50"></div>
+          <div id="matrixZoneQ4" data-zone="q4" class="matrix-zone flex-1 flex flex-col gap-1.5 overflow-y-auto p-1 border border-dashed border-gray-300 rounded bg-white/50"></div>
         </div>
       </div>
     </div>
@@ -210,19 +216,19 @@
   </div>
 
   <!-- クイック操作バー -->
-  <div id="quickActionBar" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-full items-center gap-3 shadow-2xl z-50 text-xs">
-    <button onclick="quickResize(-15)" class="flex flex-col items-center text-[10px]"><span>➖</span>15分縮小</button>
-    <button onclick="quickResize(15)" class="flex flex-col items-center text-[10px]"><span>➕</span>15分拡大</button>
-    <button onclick="openTimeEditModalForSelected()" class="flex flex-col items-center text-[10px]"><span>⏰</span>時間設定</button>
-    <button onclick="quickToggleCategoryPicker()" class="flex flex-col items-center text-[10px]"><span>🏷️</span>種類変更</button>
-    <button onclick="quickDuplicate()" class="flex flex-col items-center text-[10px]"><span>📋</span>複製</button>
-    <button onclick="quickDelete()" class="flex flex-col items-center text-[10px] text-red-400"><span>🗑️</span>削除</button>
-    <button onclick="closeQuickAction()" class="flex flex-col items-center text-[10px] text-gray-400"><span>✖</span>閉じる</button>
+  <div id="quickActionBar" class="hidden fixed bottom-3 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-3 py-1.5 rounded-full items-center gap-2.5 shadow-2xl z-50 text-xs">
+    <button onclick="quickResize(-15)" class="flex flex-col items-center text-[9px]"><span>➖</span>15分縮</button>
+    <button onclick="quickResize(15)" class="flex flex-col items-center text-[9px]"><span>➕</span>15分拡</button>
+    <button onclick="openTimeEditModalForSelected()" class="flex flex-col items-center text-[9px]"><span>⏰</span>時間</button>
+    <button onclick="quickToggleCategoryPicker()" class="flex flex-col items-center text-[9px]"><span>🏷️</span>種類</button>
+    <button onclick="quickDuplicate()" class="flex flex-col items-center text-[9px]"><span>📋</span>複製</button>
+    <button onclick="quickDelete()" class="flex flex-col items-center text-[9px] text-red-400"><span>🗑️</span>削除</button>
+    <button onclick="closeQuickAction()" class="flex flex-col items-center text-[9px] text-gray-400"><span>✖</span>閉じる</button>
   </div>
 
   <!-- モーダル各種 -->
-  <div id="timeEditModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center">
-    <div class="bg-white rounded-lg p-5 w-80 shadow-xl flex flex-col gap-3">
+  <div id="timeEditModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-lg p-4 w-full max-w-xs shadow-xl flex flex-col gap-3">
       <h3 class="text-sm font-bold text-gray-800">⏰ 開始・終了時間の変更</h3>
       <input type="hidden" id="timeEditTaskId">
       <div class="flex flex-col gap-1">
@@ -233,31 +239,31 @@
         <label class="text-xs text-gray-500 font-medium">終了時間</label>
         <input type="time" id="timeEditEnd" step="900" class="p-1.5 border border-gray-300 rounded text-xs outline-none">
       </div>
-      <div class="flex justify-end gap-2 mt-2">
+      <div class="flex justify-end gap-2 mt-1">
         <button onclick="closeTimeEditModal()" class="px-3 py-1 bg-gray-100 text-xs rounded text-gray-600">キャンセル</button>
         <button onclick="saveTimeEditModal()" class="px-3 py-1 bg-blue-600 text-xs text-white rounded font-bold">保存</button>
       </div>
     </div>
   </div>
 
-  <div id="calendarModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center">
-    <div class="bg-white rounded-lg p-5 w-80 shadow-xl flex flex-col gap-3">
+  <div id="calendarModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-lg p-4 w-full max-w-xs shadow-xl flex flex-col gap-3">
       <h3 class="text-sm font-bold text-gray-800">📅 カレンダー大枠予定を追加</h3>
-      <form onsubmit="handleSaveCalendarEvent(event)" class="flex flex-col gap-3">
+      <form onsubmit="handleSaveCalendarEvent(event)" class="flex flex-col gap-2.5">
         <input type="text" id="calEventTitle" placeholder="例: 全体戦略会議" required class="p-2 border border-gray-300 rounded text-xs">
-        <div class="flex gap-2">
-          <select id="calEventCategory" class="p-2 border border-gray-300 rounded text-xs flex-1 bg-white">
+        <div class="flex gap-1.5">
+          <select id="calEventCategory" class="p-1.5 border border-gray-300 rounded text-xs flex-1 bg-white">
             <option value="meeting">👥 会議・打合せ</option>
             <option value="desk">🖥️ デスクワーク</option>
             <option value="field">👷 現場仕事</option>
           </select>
-          <input type="date" id="calEventDate" required class="p-2 border border-gray-300 rounded text-xs flex-1">
+          <input type="date" id="calEventDate" required class="p-1.5 border border-gray-300 rounded text-xs flex-1">
         </div>
-        <div class="flex gap-2">
-          <input type="time" id="calEventStart" step="900" value="10:00" required class="p-2 border border-gray-300 rounded text-xs flex-1">
-          <input type="time" id="calEventEnd" step="900" value="12:00" required class="p-2 border border-gray-300 rounded text-xs flex-1">
+        <div class="flex gap-1.5">
+          <input type="time" id="calEventStart" step="900" value="10:00" required class="p-1.5 border border-gray-300 rounded text-xs flex-1">
+          <input type="time" id="calEventEnd" step="900" value="12:00" required class="p-1.5 border border-gray-300 rounded text-xs flex-1">
         </div>
-        <div class="flex justify-end gap-2 mt-2">
+        <div class="flex justify-end gap-2 mt-1">
           <button type="button" onclick="closeCalendarModal()" class="px-3 py-1 bg-gray-100 text-xs rounded text-gray-600">キャンセル</button>
           <button type="submit" class="px-3 py-1 bg-blue-600 text-xs text-white rounded font-bold">登録</button>
         </div>
@@ -265,12 +271,12 @@
     </div>
   </div>
 
-  <div id="routineModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center">
-    <div class="bg-white rounded-lg p-5 w-96 shadow-xl flex flex-col gap-3 max-h-[85vh]">
+  <div id="routineModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-lg p-4 w-full max-w-sm shadow-xl flex flex-col gap-2.5 max-h-[85vh]">
       <h3 class="text-sm font-bold text-gray-800 flex items-center gap-1"><i data-lucide="repeat" class="w-4 h-4 text-purple-600"></i> ルーティンワークの設定</h3>
-      <form onsubmit="handleAddRoutine(event)" class="flex flex-col gap-2 border-b border-gray-200 pb-3">
+      <form onsubmit="handleAddRoutine(event)" class="flex flex-col gap-2 border-b border-gray-200 pb-2.5">
         <input type="text" id="rtTitle" placeholder="例: 朝礼・定例ミーティング" required class="p-1.5 border border-gray-300 rounded text-xs">
-        <div class="flex gap-2">
+        <div class="flex gap-1.5">
           <input type="time" id="rtStart" value="09:00" required class="p-1.5 border border-gray-300 rounded text-xs flex-1">
           <input type="time" id="rtEnd" value="09:30" required class="p-1.5 border border-gray-300 rounded text-xs flex-1">
         </div>
@@ -282,7 +288,7 @@
               <button type="button" onclick="selectAllDays(false)" class="text-gray-400 hover:underline">クリア</button>
             </div>
           </div>
-          <div class="flex justify-between items-center gap-1 bg-gray-50 p-1.5 border border-gray-200 rounded">
+          <div class="flex justify-between items-center gap-1 bg-gray-50 p-1 border border-gray-200 rounded">
             <label class="flex flex-col items-center text-[10px] text-gray-600 cursor-pointer">
               <span>日</span><input type="checkbox" value="0" class="rt-day-cb accent-purple-600">
             </label>
@@ -311,24 +317,24 @@
           <option value="meeting">👥 会議</option>
           <option value="field">👷 現場</option>
         </select>
-        <button type="submit" class="bg-purple-600 text-white font-bold text-xs py-1.5 rounded hover:bg-purple-700 transition mt-1">+ ルーティンを登録</button>
+        <button type="submit" class="bg-purple-600 text-white font-bold text-xs py-1 rounded hover:bg-purple-700 transition mt-0.5">+ ルーティンを登録</button>
       </form>
-      <div id="routineList" class="flex flex-col gap-2 overflow-y-auto max-h-48 pr-1"></div>
-      <div class="flex justify-end mt-2">
+      <div id="routineList" class="flex flex-col gap-1.5 overflow-y-auto max-h-40 pr-1"></div>
+      <div class="flex justify-end mt-1">
         <button onclick="closeRoutineModal()" class="px-3 py-1 bg-gray-200 text-xs rounded text-gray-700">閉じる</button>
       </div>
     </div>
   </div>
 
-  <div id="syncModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center">
-    <div class="bg-white rounded-lg p-5 w-80 shadow-xl flex flex-col gap-3">
+  <div id="syncModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-lg p-4 w-full max-w-xs shadow-xl flex flex-col gap-3">
       <h3 class="text-sm font-bold text-gray-800 flex items-center gap-1"><i data-lucide="refresh-cw" class="w-4 h-4 text-emerald-600"></i> 端末同期の設定</h3>
       <p class="text-xs text-gray-500">任意のあい言葉（同期キー）を入力すると、同じキーを入力した端末同士で自動同期できます。</p>
       <div class="flex flex-col gap-1">
         <label class="text-xs font-semibold text-gray-700">同期キー (例: my-team-2026)</label>
         <input type="text" id="syncKeyInput" placeholder="例: team-schedule-2026" class="p-2 border border-gray-300 rounded text-xs outline-none">
       </div>
-      <div class="flex justify-end gap-2 mt-2">
+      <div class="flex justify-end gap-2 mt-1">
         <button onclick="closeSyncModal()" class="px-3 py-1 bg-gray-100 text-xs rounded text-gray-600">キャンセル</button>
         <button onclick="applySyncKey()" class="px-3 py-1 bg-emerald-600 text-xs text-white rounded font-bold">同期に接続</button>
       </div>
@@ -541,9 +547,9 @@
       ['Daily', 'Calendar', 'Matrix'].forEach(v => {
         const btn = document.getElementById(`viewBtn${v}`);
         if (v.toLowerCase() === view) {
-          btn.className = "px-3 py-1 text-xs font-semibold rounded-md bg-white text-blue-600 shadow-sm transition";
+          btn.className = "px-2 sm:px-3 py-1 text-xs font-semibold rounded-md bg-white text-blue-600 shadow-sm transition";
         } else {
-          btn.className = "px-3 py-1 text-xs font-semibold rounded-md text-gray-600 hover:text-blue-600 transition";
+          btn.className = "px-2 sm:px-3 py-1 text-xs font-semibold rounded-md text-gray-600 hover:text-blue-600 transition";
         }
       });
 
@@ -564,14 +570,14 @@
         schedArea.style.display = 'flex';
         inboxArea.classList.add('hidden');
         inboxArea.classList.remove('flex');
-        document.getElementById('mobTabSched').className = "flex-1 py-2 text-center text-xs font-semibold text-blue-600 border-b-2 border-blue-600 bg-blue-50/50";
-        document.getElementById('mobTabInbox').className = "flex-1 py-2 text-center text-xs font-semibold text-gray-500 border-b-2 border-transparent";
+        document.getElementById('mobTabSched').className = "flex-1 py-1.5 text-center text-xs font-semibold text-blue-600 border-b-2 border-blue-600 bg-blue-50/50";
+        document.getElementById('mobTabInbox').className = "flex-1 py-1.5 text-center text-xs font-semibold text-gray-500 border-b-2 border-transparent";
       } else {
         schedArea.style.display = 'none';
         inboxArea.classList.remove('hidden');
         inboxArea.classList.add('flex');
-        document.getElementById('mobTabSched').className = "flex-1 py-2 text-center text-xs font-semibold text-gray-500 border-b-2 border-transparent";
-        document.getElementById('mobTabInbox').className = "flex-1 py-2 text-center text-xs font-semibold text-blue-600 border-b-2 border-blue-600 bg-blue-50/50";
+        document.getElementById('mobTabSched').className = "flex-1 py-1.5 text-center text-xs font-semibold text-gray-500 border-b-2 border-transparent";
+        document.getElementById('mobTabInbox').className = "flex-1 py-1.5 text-center text-xs font-semibold text-blue-600 border-b-2 border-blue-600 bg-blue-50/50";
       }
     }
 
@@ -981,19 +987,18 @@
       closeSyncModal();
     }
 
-    // カレンダー描画（動的年月対応）
     function renderCalendarView() {
       const grid = document.getElementById('calendarGrid');
       grid.innerHTML = '';
       const parts = state.currentDateStr.split('-');
       const y = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10) - 1; // 0-indexed
+      const m = parseInt(parts[1], 10) - 1;
 
       document.getElementById('calendarMonthTitle').textContent = `${y}年 ${m + 1}月`;
 
       ['日','月','火','水','木','金','土'].forEach(d => {
         const h = document.createElement('div');
-        h.className = "bg-gray-50 p-2 text-center text-xs font-bold border-r border-b border-gray-200";
+        h.className = "bg-gray-50 p-1.5 text-center text-xs font-bold border-r border-b border-gray-200";
         h.textContent = d;
         grid.appendChild(h);
       });
@@ -1003,20 +1008,20 @@
 
       for (let i = 0; i < firstDay; i++) {
         const cell = document.createElement('div');
-        cell.className = "bg-gray-50/50 border-r border-b border-gray-200 min-h-[80px]";
+        cell.className = "bg-gray-50/50 border-r border-b border-gray-200 min-h-[70px]";
         grid.appendChild(cell);
       }
 
       for (let d = 1; d <= lastDate; d++) {
         const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         const cell = document.createElement('div');
-        cell.className = `p-1 border-r border-b border-gray-200 min-h-[80px] bg-white cursor-pointer hover:bg-blue-50/30 flex flex-col gap-1 ${dateStr === getTodayStr() ? 'bg-blue-50/50' : ''}`;
+        cell.className = `p-1 border-r border-b border-gray-200 min-h-[70px] bg-white cursor-pointer hover:bg-blue-50/30 flex flex-col gap-0.5 ${dateStr === getTodayStr() ? 'bg-blue-50/50' : ''}`;
         cell.innerHTML = `<span class="text-[10px] font-bold text-gray-400">${d}</span>`;
 
         const events = state.calendarEvents.filter(e => e.date === dateStr);
         events.forEach(ev => {
           const pill = document.createElement('div');
-          pill.className = "bg-blue-100 text-blue-800 text-[10px] px-1 rounded truncate font-medium";
+          pill.className = "bg-blue-100 text-blue-800 text-[9px] px-1 rounded truncate font-medium";
           pill.textContent = ev.title;
           cell.appendChild(pill);
         });
