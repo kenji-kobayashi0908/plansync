@@ -7,13 +7,13 @@
   <!-- Tailwind CSS & Lucide Icons -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Firebase SDKs -->
+  <!-- Firebase SDKs (Compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
   <style>
     :root {
-      --slot-height: 20px; /* 15分 = 20px */
-      --hour-height: 80px; /* 1時間 = 80px */
+      --slot-height: 20px;
+      --hour-height: 80px;
     }
     .timeline-lane {
       background-size: 100% 20px;
@@ -43,7 +43,6 @@
       <h1 class="text-base font-bold flex items-center gap-2 text-gray-800">
         <i data-lucide="calendar-clock" class="w-5 h-5 text-blue-600"></i> PlanSync Pro
       </h1>
-      <!-- View Selector -->
       <div class="bg-indigo-50 p-1 rounded-lg flex gap-1">
         <button id="viewBtnDaily" onclick="switchView('daily')" class="px-3 py-1 text-xs font-semibold rounded-md bg-white text-blue-600 shadow-sm transition">日別</button>
         <button id="viewBtnCalendar" onclick="switchView('calendar')" class="px-3 py-1 text-xs font-semibold rounded-md text-gray-600 hover:text-blue-600 transition">カレンダー</button>
@@ -51,18 +50,15 @@
       </div>
     </div>
 
-    <!-- Actions & Date Navigation -->
     <div class="flex items-center gap-1.5 flex-wrap">
-      <!-- 同期ステータスバッジ -->
-      <span id="syncBadge" class="hidden text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
-        🟢 同期中: <span id="syncKeyDisplay"></span>
+      <span id="syncBadge" class="hidden text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300 items-center gap-1">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> 同期中: <span id="syncKeyDisplay"></span>
       </span>
 
-      <!-- エクスポート / インポート -->
-      <button onclick="exportData()" class="px-2 py-1 text-xs bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 flex items-center gap-1 font-medium" title="データをファイルに保存">
+      <button onclick="exportData()" class="px-2 py-1 text-xs bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 flex items-center gap-1 font-medium">
         <i data-lucide="download" class="w-3.5 h-3.5"></i> 吐き出し
       </button>
-      <label class="px-2 py-1 text-xs bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 flex items-center gap-1 font-medium cursor-pointer" title="ファイルから読み込み">
+      <label class="px-2 py-1 text-xs bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 flex items-center gap-1 font-medium cursor-pointer">
         <i data-lucide="upload" class="w-3.5 h-3.5"></i> 読込み
         <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(event)">
       </label>
@@ -83,7 +79,7 @@
     </div>
   </header>
 
-  <!-- モバイル表示切り替え -->
+  <!-- モバイルタブ -->
   <div id="mobileTabBar" class="sm:hidden flex bg-white border-b border-gray-200 w-full">
     <button id="mobTabSched" onclick="switchMobileTab('schedule')" class="flex-1 py-2 text-center text-xs font-semibold text-blue-600 border-b-2 border-blue-600 bg-blue-50/50">タイムライン</button>
     <button id="mobTabInbox" onclick="switchMobileTab('inbox')" class="flex-1 py-2 text-center text-xs font-semibold text-gray-500 border-b-2 border-transparent">タスクBOX</button>
@@ -92,9 +88,8 @@
   <!-- メインコンテナ -->
   <div class="flex-1 relative overflow-hidden flex">
 
-    <!-- 1. デイリータイムライン VIEW -->
+    <!-- デイリー VIEW -->
     <div id="dailyView" class="w-full h-full flex flex-col sm:flex-row">
-      <!-- スケジュールエリア (左側) -->
       <div id="scheduleArea" class="flex-1 flex flex-col bg-white border-r border-gray-200 h-full overflow-hidden">
         <div class="grid grid-cols-[55px_1fr_1fr] bg-gray-50 border-b border-gray-200 text-xs font-bold text-center divide-x divide-gray-200 py-2">
           <div class="text-gray-500 flex items-center justify-center"><i data-lucide="clock" class="w-3.5 h-3.5"></i></div>
@@ -115,7 +110,7 @@
         </div>
       </div>
 
-      <!-- 右側: タスクインボックス -->
+      <!-- インボックス -->
       <div id="inboxArea" class="hidden sm:flex w-full sm:w-80 bg-gray-50 flex-col border-l border-gray-200 h-full overflow-hidden">
         <div class="p-3 border-b border-gray-200 bg-white flex-shrink-0">
           <div class="text-xs font-bold text-gray-700 mb-1.5 flex justify-between items-center">
@@ -153,7 +148,7 @@
       </div>
     </div>
 
-    <!-- 2. カレンダー VIEW -->
+    <!-- カレンダー VIEW -->
     <div id="calendarView" class="hidden w-full h-full bg-white flex-col p-4 overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
         <h2 id="calendarMonthTitle" class="text-lg font-bold text-gray-800">2026年 9月</h2>
@@ -164,7 +159,7 @@
       <div id="calendarGrid" class="grid grid-cols-7 border-t border-l border-gray-200 rounded-lg overflow-hidden flex-1"></div>
     </div>
 
-    <!-- 3. マトリクス VIEW (アイゼンハワー) -->
+    <!-- マトリクス VIEW -->
     <div id="matrixView" class="hidden w-full h-full bg-gray-100 flex-col p-4 overflow-y-auto">
       <div class="mb-3 bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
         <div class="flex justify-between items-center">
@@ -177,7 +172,6 @@
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1 min-h-[500px]">
-        <!-- Q1 -->
         <div class="bg-red-50/50 border border-red-200 rounded-lg p-3 flex flex-col min-h-[200px]">
           <div class="flex justify-between items-center mb-2">
             <span class="text-xs font-bold text-red-700 flex items-center gap-1"><i data-lucide="alert-circle" class="w-4 h-4"></i> Q1: 第1領域 (重要 × 緊急)</span>
@@ -185,7 +179,6 @@
           </div>
           <div id="matrixZoneQ1" data-zone="q1" class="matrix-zone flex-1 flex flex-col gap-2 overflow-y-auto p-1 border border-dashed border-red-200 rounded bg-white/50"></div>
         </div>
-        <!-- Q2 -->
         <div class="bg-blue-50/50 border border-blue-200 rounded-lg p-3 flex flex-col min-h-[200px]">
           <div class="flex justify-between items-center mb-2">
             <span class="text-xs font-bold text-blue-700 flex items-center gap-1"><i data-lucide="calendar" class="w-4 h-4"></i> Q2: 第2領域 (重要 × 非緊急)</span>
@@ -193,7 +186,6 @@
           </div>
           <div id="matrixZoneQ2" data-zone="q2" class="matrix-zone flex-1 flex flex-col gap-2 overflow-y-auto p-1 border border-dashed border-blue-200 rounded bg-white/50"></div>
         </div>
-        <!-- Q3 -->
         <div class="bg-amber-50/50 border border-amber-200 rounded-lg p-3 flex flex-col min-h-[200px]">
           <div class="flex justify-between items-center mb-2">
             <span class="text-xs font-bold text-amber-700 flex items-center gap-1"><i data-lucide="user-check" class="w-4 h-4"></i> Q3: 第3領域 (非重要 × 緊急)</span>
@@ -201,7 +193,6 @@
           </div>
           <div id="matrixZoneQ3" data-zone="q3" class="matrix-zone flex-1 flex flex-col gap-2 overflow-y-auto p-1 border border-dashed border-amber-200 rounded bg-white/50"></div>
         </div>
-        <!-- Q4 -->
         <div class="bg-gray-100 border border-gray-300 rounded-lg p-3 flex flex-col min-h-[200px]">
           <div class="flex justify-between items-center mb-2">
             <span class="text-xs font-bold text-gray-600 flex items-center gap-1"><i data-lucide="trash-2" class="w-4 h-4"></i> Q4: 第4領域 (非重要 × 非緊急)</span>
@@ -225,8 +216,7 @@
     <button onclick="closeQuickAction()" class="flex flex-col items-center text-[10px] text-gray-400"><span>✖</span>閉じる</button>
   </div>
 
-  <!-- 各種モーダルダイアログ -->
-  <!-- 時間直接入力モーダル -->
+  <!-- モーダル各種 -->
   <div id="timeEditModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center">
     <div class="bg-white rounded-lg p-5 w-80 shadow-xl flex flex-col gap-3">
       <h3 class="text-sm font-bold text-gray-800">⏰ 開始・終了時間の変更</h3>
@@ -246,13 +236,11 @@
     </div>
   </div>
 
-  <!-- カレンダー大枠予定追加モーダル -->
   <div id="calendarModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center">
     <div class="bg-white rounded-lg p-5 w-80 shadow-xl flex flex-col gap-3">
       <h3 class="text-sm font-bold text-gray-800">📅 カレンダー大枠予定を追加</h3>
       <form onsubmit="handleSaveCalendarEvent(event)" class="flex flex-col gap-3">
         <input type="text" id="calEventTitle" placeholder="例: 全体戦略会議" required class="p-2 border border-gray-300 rounded text-xs">
-        
         <div class="flex gap-2">
           <select id="calEventCategory" class="p-2 border border-gray-300 rounded text-xs flex-1 bg-white">
             <option value="meeting">👥 会議・打合せ</option>
@@ -261,7 +249,6 @@
           </select>
           <input type="date" id="calEventDate" required class="p-2 border border-gray-300 rounded text-xs flex-1">
         </div>
-
         <div class="flex gap-2">
           <input type="time" id="calEventStart" step="900" value="10:00" required class="p-2 border border-gray-300 rounded text-xs flex-1">
           <input type="time" id="calEventEnd" step="900" value="12:00" required class="p-2 border border-gray-300 rounded text-xs flex-1">
@@ -274,7 +261,6 @@
     </div>
   </div>
 
-  <!-- ルーティン管理モーダル -->
   <div id="routineModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center">
     <div class="bg-white rounded-lg p-5 w-96 shadow-xl flex flex-col gap-3 max-h-[85vh]">
       <h3 class="text-sm font-bold text-gray-800 flex items-center gap-1"><i data-lucide="repeat" class="w-4 h-4 text-purple-600"></i> ルーティンワークの設定</h3>
@@ -284,7 +270,6 @@
           <input type="time" id="rtStart" value="09:00" required class="p-1.5 border border-gray-300 rounded text-xs flex-1">
           <input type="time" id="rtEnd" value="09:30" required class="p-1.5 border border-gray-300 rounded text-xs flex-1">
         </div>
-        
         <div class="flex flex-col gap-1">
           <div class="flex justify-between items-center text-xs font-semibold text-gray-600">
             <span>繰り返し曜日</span>
@@ -317,13 +302,11 @@
             </label>
           </div>
         </div>
-
         <select id="rtCategory" class="p-1.5 border border-gray-300 rounded text-xs bg-white">
           <option value="desk">🖥️ デスク</option>
           <option value="meeting">👥 会議</option>
           <option value="field">👷 現場</option>
         </select>
-
         <button type="submit" class="bg-purple-600 text-white font-bold text-xs py-1.5 rounded hover:bg-purple-700 transition mt-1">+ ルーティンを登録</button>
       </form>
       <div id="routineList" class="flex flex-col gap-2 overflow-y-auto max-h-48 pr-1"></div>
@@ -333,7 +316,6 @@
     </div>
   </div>
 
-  <!-- クラウド・端末同期モーダル -->
   <div id="syncModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center">
     <div class="bg-white rounded-lg p-5 w-80 shadow-xl flex flex-col gap-3">
       <h3 class="text-sm font-bold text-gray-800 flex items-center gap-1"><i data-lucide="refresh-cw" class="w-4 h-4 text-emerald-600"></i> 端末同期の設定</h3>
@@ -349,9 +331,9 @@
     </div>
   </div>
 
-  <!-- メインスクリプト -->
+  <!-- スクリプト -->
   <script>
-    const SLOT_HEIGHT = 20; // 15分 = 20px
+    const SLOT_HEIGHT = 20;
     const CATEGORY_MAP = {
       desk: { label: 'デスク', icon: '💻', color: 'bg-blue-100 text-blue-800', border: '#3b82f6' },
       meeting: { label: '会議', icon: '👥', color: 'bg-purple-100 text-purple-800', border: '#8b5cf6' },
@@ -371,6 +353,7 @@
     };
 
     let dbRef = null;
+    let isRemoteUpdating = false;
 
     window.addEventListener('DOMContentLoaded', () => {
       initFirebase();
@@ -400,7 +383,7 @@
       return d.toISOString().split('T')[0];
     }
 
-    // --- エクスポート & インポート ---
+    // エクスポート / インポート
     function exportData() {
       const exportObj = {
         version: "1.0",
@@ -409,7 +392,6 @@
         calendarEvents: state.calendarEvents,
         routines: state.routines
       };
-
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute("href", dataStr);
@@ -434,20 +416,20 @@
           renderAll();
           alert('履歴データを正常に読み込みました！');
         } catch (err) {
-          alert('ファイルの形式が正しくありません。JSONファイルを選択してください。');
+          alert('JSONファイルの読み込みに失敗しました。');
         }
         event.target.value = '';
       };
       fileReader.readAsText(file);
     }
 
-    // --- Firebase リアルタイム同期 ---
+    // Firebase 接続制御
     function initFirebase() {
       const firebaseConfig = {
-        databaseURL: "https://my-plansync-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        databaseURL: "https://my-plansync-default-rtdb.asia-southeast1.firebasedatabase.app"
       };
       if (!firebase.apps.length) {
-        try { firebase.initializeApp(firebaseConfig); } catch(e){}
+        try { firebase.initializeApp(firebaseConfig); } catch(e){ console.error(e); }
       }
       if (state.syncKey) {
         connectFirebaseSync(state.syncKey);
@@ -458,22 +440,30 @@
       if (!key) return;
       try {
         const sanitizedKey = key.replace(/[.#$/\[\]]/g, '_');
+        if (dbRef) dbRef.off(); // 既存のリスナーを解除
+
         dbRef = firebase.database().ref('schedules/' + sanitizedKey);
         
-        document.getElementById('syncBadge').classList.remove('hidden');
-        document.getElementById('syncBadge').classList.add('flex');
+        const badge = document.getElementById('syncBadge');
+        badge.classList.remove('hidden');
+        badge.classList.add('flex');
         document.getElementById('syncKeyDisplay').textContent = key;
 
         dbRef.on('value', (snapshot) => {
           const val = snapshot.val();
           if (val) {
+            isRemoteUpdating = true; // ループ防止フラグON
             state.tasks = val.tasks || [];
             state.calendarEvents = val.calendarEvents || [];
             state.routines = val.routines || [];
-            renderAll(true);
+            renderAll(true); // リモートからの更新時はFirebase送信をスキップ
+            isRemoteUpdating = false;
           }
+        }, (error) => {
+          console.error("Firebase Realtime Database Error:", error);
+          alert("リアルタイム同期でエラーが発生しました。アクセス権限（ルール）をご確認ください。");
         });
-      } catch(e) { console.log('Firebase Sync error', e); }
+      } catch(e) { console.error('Firebase Connect failed', e); }
     }
 
     function loadStorageData() {
@@ -491,16 +481,15 @@
       localStorage.setItem('ts_calendar', JSON.stringify(state.calendarEvents));
       localStorage.setItem('ts_routines', JSON.stringify(state.routines));
 
-      if (dbRef) {
+      if (dbRef && !isRemoteUpdating) {
         dbRef.set({
           tasks: state.tasks,
           calendarEvents: state.calendarEvents,
           routines: state.routines
-        });
+        }).catch(err => console.error("Firebase Write Error:", err));
       }
     }
 
-    // --- 時間軸生成 ---
     function initTimeLabels() {
       const container = document.getElementById('timeLabels');
       container.innerHTML = '';
@@ -536,7 +525,6 @@
       renderAll();
     }
 
-    // --- ビュー切替 ---
     function switchView(view) {
       state.currentView = view;
       ['Daily', 'Calendar', 'Matrix'].forEach(v => {
@@ -576,9 +564,7 @@
       }
     }
 
-    // --- 同期＆ルーティン処理 ---
     function syncCalendarAndRoutines() {
-      // 1. カレンダー大枠予定の同期
       const cEvents = state.calendarEvents.filter(e => e.date === state.currentDateStr);
       cEvents.forEach(ce => {
         if (!state.tasks.some(t => t.calendarEventId === ce.id)) {
@@ -597,7 +583,6 @@
         }
       });
 
-      // 2. ルーティンの同期
       const currD = new Date(state.currentDateStr);
       const dayOfWeek = currD.getDay();
 
@@ -622,7 +607,6 @@
       });
     }
 
-    // --- 全体描写 ---
     function renderAll(skipSave = false) {
       syncCalendarAndRoutines();
       renderTimelineTasks();
@@ -662,7 +646,6 @@
       });
     }
 
-    // --- タスクカードDOMの生成 ---
     function createTaskCardElement(task) {
       const card = document.createElement('div');
       const catInfo = CATEGORY_MAP[task.category] || CATEGORY_MAP.desk;
@@ -710,7 +693,6 @@
       return `${h}:${m}`;
     }
 
-    // --- タスク操作 ---
     function handleAddTask(e) {
       e.preventDefault();
       const title = document.getElementById('newTaskTitle').value.trim();
@@ -744,7 +726,6 @@
       if (t) { t.completed = completed; renderAll(); }
     }
 
-    // --- ドラッグ＆ドロップ & Ctrl複製 ---
     let draggedTaskId = null;
     function handleDragStart(e) {
       draggedTaskId = this.dataset.id;
@@ -811,7 +792,6 @@
 
     function toggleCopyBadges(show) { renderAll(); }
 
-    // --- 時間変更モーダル ---
     function openTimeEditModal(taskId) {
       const task = state.tasks.find(t => t.id === taskId);
       if (!task) return;
@@ -839,7 +819,6 @@
       closeTimeEditModal();
     }
 
-    // --- マトリクス描画 ---
     function renderMatrixView() {
       ['q1', 'q2', 'q3', 'q4'].forEach(q => {
         document.getElementById(`matrixZone${q.toUpperCase()}`).innerHTML = '';
@@ -896,7 +875,6 @@
       }
     }
 
-    // --- ルーティン管理 ---
     function openRoutineModal() { renderRoutineList(); document.getElementById('routineModal').style.display = 'flex'; }
     function closeRoutineModal() { document.getElementById('routineModal').style.display = 'none'; }
     
@@ -956,24 +934,23 @@
       renderRoutineList();
     }
 
-    // --- 同期キー設定 ---
     function openSyncModal() {
       document.getElementById('syncKeyInput').value = state.syncKey || '';
       document.getElementById('syncModal').style.display = 'flex';
     }
     function closeSyncModal() { document.getElementById('syncModal').style.display = 'none'; }
+    
     function applySyncKey() {
       const key = document.getElementById('syncKeyInput').value.trim();
       if (key) {
         state.syncKey = key;
         localStorage.setItem('ts_sync_key', key);
         connectFirebaseSync(key);
-        alert(`同期キー "${key}" に接続しました！PCとスマホの両方で同じキーを入力すると自動同期します。`);
+        alert(`同期キー "${key}" に接続しました！`);
       }
       closeSyncModal();
     }
 
-    // --- カレンダー描画 ---
     function renderCalendarView() {
       const grid = document.getElementById('calendarGrid');
       grid.innerHTML = '';
@@ -1045,7 +1022,6 @@
       renderAll();
     }
 
-    // --- クイック操作 / カテゴリ変更 / リサイズ / 集計 ---
     function selectTask(id) {
       state.selectedTaskId = id;
       document.getElementById('quickActionBar').style.display = 'flex';
@@ -1059,7 +1035,6 @@
 
     function quickToggleCategoryPicker() {
       if (!state.selectedTaskId) return;
-      
       const existing = document.getElementById('activeCategoryPickerPopover');
       if (existing) { existing.remove(); return; }
 
