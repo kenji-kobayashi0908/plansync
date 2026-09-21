@@ -115,7 +115,7 @@
         </div>
       </div>
 
-      <!-- 右側: タスクインボックス (スマホサイズレスポンシブ最適化) -->
+      <!-- 右側: タスクインボックス -->
       <div id="inboxArea" class="hidden sm:flex w-full sm:w-80 bg-gray-50 flex-col border-l border-gray-200 h-full overflow-hidden">
         <div class="p-3 border-b border-gray-200 bg-white flex-shrink-0">
           <div class="text-xs font-bold text-gray-700 mb-1.5 flex justify-between items-center">
@@ -444,7 +444,7 @@
     // --- Firebase リアルタイム同期 ---
     function initFirebase() {
       const firebaseConfig = {
-        databaseURL: "https://plansync-default-rtdb.asia-southeast1.firebasedatabase.app"
+        databaseURL: "https://my-plansync-default-rtdb.asia-southeast1.firebasedatabase.app/"
       };
       if (!firebase.apps.length) {
         try { firebase.initializeApp(firebaseConfig); } catch(e){}
@@ -470,7 +470,7 @@
             state.tasks = val.tasks || [];
             state.calendarEvents = val.calendarEvents || [];
             state.routines = val.routines || [];
-            renderAll(true); // リモート読み込み時はsaveDataループを防ぐ
+            renderAll(true);
           }
         });
       } catch(e) { console.log('Firebase Sync error', e); }
@@ -968,7 +968,7 @@
         state.syncKey = key;
         localStorage.setItem('ts_sync_key', key);
         connectFirebaseSync(key);
-        alert(`同期キー "${key}" に接続しました！他の端末でも同じキーを入力してください。`);
+        alert(`同期キー "${key}" に接続しました！PCとスマホの両方で同じキーを入力すると自動同期します。`);
       }
       closeSyncModal();
     }
