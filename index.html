@@ -325,7 +325,7 @@
         <input type="text" id="syncKeyInput" placeholder="例: team-schedule-2026" class="p-2 border border-gray-300 rounded text-xs outline-none">
       </div>
       <div class="flex justify-end gap-2 mt-2">
-        <button onclick="closeSyncModal()" class="px-3 py-1 bg-gray-100 text-xs rounded text-gray-600">閉じる</button>
+        <button onclick="closeSyncModal()" class="px-3 py-1 bg-gray-100 text-xs rounded text-gray-600">キャンセル</button>
         <button onclick="applySyncKey()" class="px-3 py-1 bg-emerald-600 text-xs text-white rounded font-bold">同期に接続</button>
       </div>
     </div>
@@ -440,7 +440,7 @@
       if (!key) return;
       try {
         const sanitizedKey = key.replace(/[.#$/\[\]]/g, '_');
-        if (dbRef) dbRef.off(); // 既存のリスナーを解除
+        if (dbRef) dbRef.off();
 
         dbRef = firebase.database().ref('schedules/' + sanitizedKey);
         
@@ -452,16 +452,15 @@
         dbRef.on('value', (snapshot) => {
           const val = snapshot.val();
           if (val) {
-            isRemoteUpdating = true; // ループ防止フラグON
+            isRemoteUpdating = true;
             state.tasks = val.tasks || [];
             state.calendarEvents = val.calendarEvents || [];
             state.routines = val.routines || [];
-            renderAll(true); // リモートからの更新時はFirebase送信をスキップ
+            renderAll(true);
             isRemoteUpdating = false;
           }
         }, (error) => {
           console.error("Firebase Realtime Database Error:", error);
-          alert("リアルタイム同期でエラーが発生しました。アクセス権限（ルール）をご確認ください。");
         });
       } catch(e) { console.error('Firebase Connect failed', e); }
     }
@@ -819,6 +818,7 @@
       closeTimeEditModal();
     }
 
+    // マトリクス描画（同一タイトルの重複表示を防止）
     function renderMatrixView() {
       ['q1', 'q2', 'q3', 'q4'].forEach(q => {
         document.getElementById(`matrixZone${q.toUpperCase()}`).innerHTML = '';
@@ -826,7 +826,23 @@
       const tray = document.getElementById('matrixInboxTray');
       tray.innerHTML = '';
 
+      // タイトル単位で重複を排除（同じタスクが計画・実績の両方にあっても1つだけ表示）
+      const uniqueTasksMap = new Map();
       state.tasks.forEach(task => {
+        if (!uniqueTasksMap.has(task.title)) {
+          uniqueTasksMap.set(task.title, task);
+        } else {
+          // 計画(plan)やインボックス(inbox)側のタスク定義を優先
+          const existing = uniqueTasksMap.get(task.title);
+          if (existing.lane === 'actual' && task.lane !== 'actual') {
+            uniqueTasksMap.set(task.title, task);
+          }
+        }
+      });
+
+      const uniqueTasks = Array.from(uniqueTasksMap.values());
+
+      uniqueTasks.forEach(task => {
         const card = document.createElement('div');
         card.className = "bg-white p-2 rounded shadow-sm border border-gray-200 text-xs flex justify-between items-center cursor-grab";
         card.dataset.id = task.id;
@@ -836,10 +852,10 @@
         card.innerHTML = `
           <span class="font-bold truncate text-gray-700">${task.title}</span>
           <div class="flex gap-1">
-            <button onclick="setMatrixZone('${task.id}', 'q1')" class="px-1 text-[9px] bg-red-100 text-red-700 rounded font-bold">Q1</button>
-            <button onclick="setMatrixZone('${task.id}', 'q2')" class="px-1 text-[9px] bg-blue-100 text-blue-700 rounded font-bold">Q2</button>
-            <button onclick="setMatrixZone('${task.id}', 'q3')" class="px-1 text-[9px] bg-amber-100 text-amber-700 rounded font-bold">Q3</button>
-            <button onclick="setMatrixZone('${task.id}', 'q4')" class="px-1 text-[9px] bg-gray-200 text-gray-700 rounded font-bold">Q4</button>
+            <button onclick="setMatrixZoneByTitle('${task.title}', 'q1')" class="px-1 text-[9px] bg-red-100 text-red-700 rounded font-bold">Q1</button>
+            <button onclick="setMatrixZoneByTitle('${task.title}', 'q2')" class="px-1 text-[9px] bg-blue-100 text-blue-700 rounded font-bold">Q2</button>
+            <button onclick="setMatrixZoneByTitle('${task.title}', 'q3')" class="px-1 text-[9px] bg-amber-100 text-amber-700 rounded font-bold">Q3</button>
+            <button onclick="setMatrixZoneByTitle('${task.title}', 'q4')" class="px-1 text-[9px] bg-gray-200 text-gray-700 rounded font-bold">Q4</button>
           </div>
         `;
 
@@ -852,9 +868,14 @@
       });
     }
 
-    function setMatrixZone(taskId, zone) {
-      const task = state.tasks.find(t => t.id === taskId);
-      if (task) { task.matrixZone = zone; renderAll(); }
+    // 同名タスクすべてのマトリクス領域をまとめて更新
+    function setMatrixZoneByTitle(title, zone) {
+      state.tasks.forEach(t => {
+        if (t.title === title) {
+          t.matrixZone = zone;
+        }
+      });
+      renderAll();
     }
 
     function quickAddMatrixTask(zone) {
