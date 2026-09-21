@@ -1,0 +1,1716 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>タスク・タイムスケジュール＆カレンダー統合マネージャー</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Firebase SDK (PC・スマホ・Teamsリアルタイム同期用) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    window._fb = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, onSnapshot };
+  </script>
+  <style>
+    :root {
+      --slot-height: 20px; /* 15分 = 20px (1時間 = 80px) */
+    }
+    .slot-height {
+      height: var(--slot-height);
+    }
+    .minor-grid-bg {
+      background-size: 100% var(--slot-height);
+      background-image: linear-gradient(to bottom, rgba(226, 232, 240, 0.7) 1px, transparent 1px);
+    }
+    .hour-grid-bg {
+      background-size: 100% calc(var(--slot-height) * 4);
+      background-image: linear-gradient(to bottom, rgba(148, 163, 184, 0.5) 1px, transparent 1px);
+    }
+    /* スクロールバー装飾 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    /* ドラッグ関連 */
+    .task-card.dragging {
+      opacity: 0.45;
+      transform: scale(0.97);
+    }
+    .task-card.dragging-copy {
+      border-style: dashed !important;
+    }
+    /* チェック完了（グレーアウト） */
+    .task-completed {
+      background-color: #f1f5f9 !important;
+      border-color: #94a3b8 !important;
+      color: #64748b !important;
+      opacity: 0.72;
+    }
+    .task-completed .task-title-text {
+      text-decoration: line-through;
+      color: #64748b !important;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans text-slate-800 antialiased selection:bg-indigo-500 selection:text-white select-none">
+
+  <!-- ヘッダー -->
+  <header class="bg-white border-b border-slate-200 px-3 sm:px-5 py-2 flex-none flex flex-wrap items-center justify-between gap-2 shadow-xs z-30">
+    <div class="flex items-center gap-2.5 sm:gap-3">
+      <div class="bg-gradient-to-tr from-indigo-600 to-violet-600 text-white p-2 rounded-xl shadow-xs">
+        <i data-lucide="calendar-clock" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+      </div>
+      <div>
+        <h1 class="text-sm sm:text-base font-bold text-slate-800 leading-tight">PlanSync Work</h1>
+        <p class="text-[10px] text-slate-400 font-medium hidden sm:block">タイムスケジュール・カレンダー・マトリクス統合マネージャー</p>
+      </div>
+    </div>
+
+    <!-- メインビュー切り替えタブ (日別 / カレンダー / マトリクス) -->
+    <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+      <button id="tab-daily" class="view-tab-btn px-2.5 sm:px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 bg-white text-indigo-600 shadow-xs">
+        <i data-lucide="clock" class="w-3.5 h-3.5"></i><span>日別</span>
+      </button>
+      <button id="tab-calendar" class="view-tab-btn px-2.5 sm:px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 text-slate-600 hover:text-slate-900">
+        <i data-lucide="calendar" class="w-3.5 h-3.5"></i><span>カレンダー</span>
+      </button>
+      <button id="tab-matrix" class="view-tab-btn px-2.5 sm:px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 text-slate-600 hover:text-slate-900">
+        <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i><span>マトリクス</span>
+      </button>
+    </div>
+
+    <!-- 日付ナビゲーション -->
+    <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+      <button id="prev-date-btn" class="p-1 hover:bg-white rounded-md text-slate-600 transition" title="前日">
+        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+      </button>
+      <input type="date" id="date-picker" class="bg-white px-2 py-0.5 rounded-md border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer focus:outline-none">
+      <button id="next-date-btn" class="p-1 hover:bg-white rounded-md text-slate-600 transition" title="翌日">
+        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+      </button>
+      <button id="today-btn" class="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold rounded-md transition text-[11px]">
+        今日
+      </button>
+    </div>
+
+    <!-- 各種モーダル呼び出しボタン -->
+    <div class="flex items-center gap-1.5">
+      <button id="open-sync-modal-btn" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 font-bold border border-emerald-300" title="PC・スマホ・Teams共同編集同期">
+        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-emerald-600"></i><span class="hidden sm:inline">共同・端末同期</span>
+      </button>
+      <button id="open-routine-modal-btn" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 font-semibold border border-slate-200" title="ルーティンワーク設定">
+        <i data-lucide="repeat" class="w-3.5 h-3.5 text-indigo-600"></i><span class="hidden md:inline">ルーティン</span>
+      </button>
+      <button id="open-calendar-modal-btn" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1 font-semibold">
+        <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">大枠予定追加</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- スマホ用サブタブバー (日別表示時にタイムライン / インボックスを切り替え) -->
+  <div id="mobile-subtabs" class="sm:hidden flex bg-white border-b border-slate-200 text-xs font-bold text-center">
+    <button id="mob-sub-schedule" class="flex-1 py-2 text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50">
+      タイムスケジュール (計画・実績)
+    </button>
+    <button id="mob-sub-inbox" class="flex-1 py-2 text-slate-500 border-b-2 border-transparent hover:text-slate-800">
+      タスクBOX <span id="mob-inbox-badge" class="ml-1 px-1.5 py-0.2 bg-slate-200 text-[10px] rounded-full">0</span>
+    </button>
+  </div>
+
+  <!-- メイン表示領域 -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- ==================== 1. デイリー タイムライン VIEW ==================== -->
+    <div id="view-daily-container" class="flex-1 flex overflow-hidden">
+      <!-- タイムスケジュール (計画 & 実績) -->
+      <main id="schedule-section" class="flex-1 flex flex-col min-w-0 bg-slate-50 border-r border-slate-200">
+        <!-- タイムライン見出し (計画 & 実績) -->
+        <div class="flex border-b border-slate-200 bg-white shadow-xs z-10">
+          <div class="w-14 sm:w-16 flex-none border-r border-slate-200 py-2 text-center text-[11px] font-bold text-slate-400">
+            時刻
+          </div>
+          <div class="flex-1 grid grid-cols-2 divide-x divide-slate-200">
+            <!-- 計画 (Plan) -->
+            <div class="py-2 px-2 sm:px-4 flex items-center justify-between bg-blue-50/40">
+              <div class="flex items-center space-x-1.5 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-blue-100 flex-none"></span>
+                <span class="font-bold text-slate-700 text-xs sm:text-sm truncate">計画 (Plan)</span>
+                <span class="hidden md:inline text-[9px] text-blue-600 bg-blue-100/70 border border-blue-200 px-1 py-0.2 rounded">大枠・ルーティン自動反映</span>
+              </div>
+              <span id="plan-total-display" class="text-[10px] sm:text-[11px] text-blue-700 font-semibold bg-blue-100 px-2 py-0.5 rounded-full flex-none">0h 0m</span>
+            </div>
+            <!-- 実績 (Actual) -->
+            <div class="py-2 px-2 sm:px-4 flex items-center justify-between bg-emerald-50/40">
+              <div class="flex items-center space-x-1.5 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-100 flex-none"></span>
+                <span class="font-bold text-slate-700 text-xs sm:text-sm truncate">実績 (Actual)</span>
+              </div>
+              <span id="act-total-display" class="text-[10px] sm:text-[11px] text-emerald-700 font-semibold bg-emerald-100 px-2 py-0.5 rounded-full flex-none">0h 0m</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- タイムラインスクロールエリア (05:00 - 24:00) -->
+        <div id="timeline-scroll-box" class="flex-1 overflow-y-auto relative">
+          <div class="flex relative min-h-max">
+            <!-- 時刻目盛りラベル -->
+            <div id="timeline-labels" class="w-14 sm:w-16 flex-none border-r border-slate-200 bg-slate-50/90 select-none">
+              <!-- JS生成 -->
+            </div>
+            <!-- グリッド (計画 & 実績 レーン) -->
+            <div class="flex-1 grid grid-cols-2 divide-x divide-slate-200 relative min-h-full">
+              <div id="plan-lane" class="relative minor-grid-bg hour-grid-bg transition-colors duration-150" data-lane="plan"></div>
+              <div id="act-lane" class="relative minor-grid-bg hour-grid-bg transition-colors duration-150" data-lane="actual"></div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- タスクインボックス (サイドバー) -->
+      <aside id="inbox-section" class="w-full sm:w-80 lg:w-88 flex-none bg-white flex flex-col z-10 shadow-lg sm:shadow-none border-l border-slate-200 hidden sm:flex">
+        <!-- 操作ヒント -->
+        <div class="px-3 py-1.5 text-[11px] text-slate-500 flex items-center justify-between bg-slate-50 border-b border-slate-200">
+          <span class="flex items-center gap-1"><i data-lucide="info" class="w-3.5 h-3.5 text-indigo-500"></i><kbd class="px-1 py-0.2 bg-slate-200 rounded font-mono text-[9px]">Ctrl</kbd> + ドラッグで複製</span>
+          <span class="text-[10px] text-slate-400">ダブルクリックで名前編集</span>
+        </div>
+
+        <!-- タスク作成フォーム -->
+        <div class="p-3 border-b border-slate-200 bg-slate-50/30">
+          <form id="add-task-form" class="space-y-2">
+            <div>
+              <input type="text" id="input-task-title" placeholder="タスク・作業名を入力..." required
+                class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">タスクの種類</label>
+                <select id="input-task-category" class="w-full px-2 py-1 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                  <option value="desk">🖥️ デスクワーク</option>
+                  <option value="meeting">👥 会議・打合せ</option>
+                  <option value="field">👷 現場仕事</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">所要時間</label>
+                <select id="input-task-duration" class="w-full px-2 py-1 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                  <option value="15">15分</option>
+                  <option value="30" selected>30分</option>
+                  <option value="45">45分</option>
+                  <option value="60">1時間</option>
+                  <option value="90">1.5時間</option>
+                  <option value="120">2時間</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">マトリクス優先度 (任意)</label>
+              <select id="input-task-matrix" class="w-full px-2 py-1 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                <option value="">未指定 (後で振り分け)</option>
+                <option value="q1">第1領域：すぐやる (緊急×重要)</option>
+                <option value="q2">第2領域：計画 (重要)</option>
+                <option value="q3">第3領域：効率化・委任 (緊急)</option>
+                <option value="q4">第4領域：後回し・見直し</option>
+              </select>
+            </div>
+
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-xs transition flex items-center justify-center gap-1">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i> タスクBOXに追加
+            </button>
+          </form>
+        </div>
+
+        <!-- インボックス一覧領域 -->
+        <div class="flex-1 flex flex-col p-3 overflow-hidden">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <i data-lucide="inbox" class="w-4 h-4 text-slate-500"></i> タスクBOX
+              <span id="inbox-count-badge" class="bg-slate-200 text-slate-700 text-[10px] font-bold px-1.5 py-0.2 rounded-full">0</span>
+            </h2>
+            <span class="text-[10px] text-slate-400">タイムラインへドロップ</span>
+          </div>
+
+          <div id="inbox-dropzone" class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[120px] border-2 border-dashed border-slate-200 rounded-xl p-2 bg-slate-50/50 transition-colors" data-lane="inbox">
+            <div id="inbox-empty-notice" class="h-full flex flex-col items-center justify-center text-center p-4 text-slate-400">
+              <i data-lucide="layers" class="w-8 h-8 mb-1.5 opacity-40"></i>
+              <p class="text-xs font-medium">タスクがありません。<br>上のフォームから作業を追加してください。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ゴミ箱 -->
+        <div id="trash-dropzone" class="m-3 mt-0 border-2 border-dashed border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl p-2 flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer">
+          <i data-lucide="trash-2" class="w-4 h-4"></i> ドロップして削除
+        </div>
+      </aside>
+    </div>
+
+    <!-- ==================== 2. カレンダー VIEW (大枠予定) ==================== -->
+    <div id="view-calendar-container" class="flex-1 hidden flex-col bg-white overflow-y-auto p-3 sm:p-6">
+      <div class="max-w-6xl mx-auto w-full flex flex-col h-full">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <h2 id="calendar-month-heading" class="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="calendar" class="w-5 h-5 text-indigo-600"></i> カレンダー
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">大枠の予定（終日・会議など）を設定します。登録した予定は該当日の日別タイムライン（計画）へ自動同期されます。</p>
+          </div>
+          <button onclick="openCalendarModal()" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i> 大枠予定を登録
+          </button>
+        </div>
+
+        <!-- 月間グリッド -->
+        <div class="border border-slate-200 rounded-2xl overflow-hidden shadow-xs flex-1 flex flex-col bg-white">
+          <div class="grid grid-cols-7 border-b border-slate-200 bg-slate-100 text-center font-bold text-xs text-slate-600 py-2">
+            <div class="text-rose-500">日</div>
+            <div>月</div>
+            <div>火</div>
+            <div>水</div>
+            <div>木</div>
+            <div>金</div>
+            <div class="text-blue-500">土</div>
+          </div>
+          <div id="calendar-cells-grid" class="grid grid-cols-7 flex-1 divide-x divide-y divide-slate-200 bg-slate-50">
+            <!-- JSで動的生成 -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 3. アイゼンハワーダイアグラム (マトリクス) VIEW ==================== -->
+    <div id="view-matrix-container" class="flex-1 hidden flex-col bg-slate-100 overflow-y-auto p-3 sm:p-5">
+      <div class="max-w-6xl mx-auto w-full flex flex-col h-full space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="layout-grid" class="w-5 h-5 text-indigo-600"></i> タスク整理マトリクス (アイゼンハワー)
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">タスクを4領域へ直接追加または下のトレイから振り分けて整理できます。</p>
+          </div>
+          <span class="text-xs font-semibold bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">
+            選択日: <span id="matrix-current-date-label" class="text-indigo-600 font-bold"></span>
+          </span>
+        </div>
+
+        <!-- 未整理インボックスタスク トレイ（ここから各領域へ振り分け） -->
+        <div class="bg-white border border-slate-200 rounded-xl p-3 shadow-xs">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <i data-lucide="inbox" class="w-4 h-4 text-indigo-500"></i> 未整理タスク（日別インボックス・タイムライン）
+              <span id="matrix-inbox-count" class="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.5 rounded-full font-bold">0件</span>
+            </span>
+            <span class="text-[10px] text-slate-400">クリックして領域を選択、またはドラッグして投入</span>
+          </div>
+          <div id="matrix-unassigned-tray" class="flex flex-wrap gap-2 min-h-[42px] p-2 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+            <!-- JSで未分類タスクをチップ形式で表示 -->
+          </div>
+        </div>
+
+        <!-- 4象限グリッド -->
+        <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 min-h-[480px]">
+          <!-- 第1領域: 最優先・緊急かつ重要 (DO) -->
+          <div class="bg-rose-50/60 border-2 border-rose-200 rounded-2xl p-3 flex flex-col" data-matrix-quadrant="q1">
+            <div class="flex items-center justify-between pb-2 border-b border-rose-200">
+              <span class="text-xs font-bold text-rose-700 flex items-center gap-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> 第1領域：すぐやる (緊急 × 重要)
+              </span>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-rose-500 font-semibold" id="count-q1">0件</span>
+                <button onclick="promptAddMatrixTask('q1')" class="text-[11px] bg-white border border-rose-300 hover:bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded-md transition shadow-xs flex items-center gap-0.5">
+                  <i data-lucide="plus" class="w-3 h-3"></i>追加
+                </button>
+              </div>
+            </div>
+            <div id="matrix-zone-q1" class="flex-1 overflow-y-auto pt-2 space-y-2 matrix-zone min-h-[80px]" data-matrix-zone="q1"></div>
+          </div>
+
+          <!-- 第2領域: 計画・重要だが緊急ではない (PLAN) -->
+          <div class="bg-blue-50/60 border-2 border-blue-200 rounded-2xl p-3 flex flex-col" data-matrix-quadrant="q2">
+            <div class="flex items-center justify-between pb-2 border-b border-blue-200">
+              <span class="text-xs font-bold text-blue-700 flex items-center gap-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> 第2領域：計画して進める (重要)
+              </span>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-blue-500 font-semibold" id="count-q2">0件</span>
+                <button onclick="promptAddMatrixTask('q2')" class="text-[11px] bg-white border border-blue-300 hover:bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-md transition shadow-xs flex items-center gap-0.5">
+                  <i data-lucide="plus" class="w-3 h-3"></i>追加
+                </button>
+              </div>
+            </div>
+            <div id="matrix-zone-q2" class="flex-1 overflow-y-auto pt-2 space-y-2 matrix-zone min-h-[80px]" data-matrix-zone="q2"></div>
+          </div>
+
+          <!-- 第3領域: 委任・急ぎだが重要ではない (DELEGATE) -->
+          <div class="bg-amber-50/60 border-2 border-amber-200 rounded-2xl p-3 flex flex-col" data-matrix-quadrant="q3">
+            <div class="flex items-center justify-between pb-2 border-b border-amber-200">
+              <span class="text-xs font-bold text-amber-700 flex items-center gap-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> 第3領域：効率化・委任 (緊急)
+              </span>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-amber-500 font-semibold" id="count-q3">0件</span>
+                <button onclick="promptAddMatrixTask('q3')" class="text-[11px] bg-white border border-amber-300 hover:bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-md transition shadow-xs flex items-center gap-0.5">
+                  <i data-lucide="plus" class="w-3 h-3"></i>追加
+                </button>
+              </div>
+            </div>
+            <div id="matrix-zone-q3" class="flex-1 overflow-y-auto pt-2 space-y-2 matrix-zone min-h-[80px]" data-matrix-zone="q3"></div>
+          </div>
+
+          <!-- 第4領域: 削除・後回し・見直し (ELIMINATE) -->
+          <div class="bg-slate-50 border-2 border-slate-200 rounded-2xl p-3 flex flex-col" data-matrix-quadrant="q4">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+              <span class="text-xs font-bold text-slate-600 flex items-center gap-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span> 第4領域：後回し・見直し
+              </span>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-slate-500 font-semibold" id="count-q4">0件</span>
+                <button onclick="promptAddMatrixTask('q4')" class="text-[11px] bg-white border border-slate-300 hover:bg-slate-200 text-slate-700 font-bold px-2 py-0.5 rounded-md transition shadow-xs flex items-center gap-0.5">
+                  <i data-lucide="plus" class="w-3 h-3"></i>追加
+                </button>
+              </div>
+            </div>
+            <div id="matrix-zone-q4" class="flex-1 overflow-y-auto pt-2 space-y-2 matrix-zone min-h-[80px]" data-matrix-zone="q4"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- スマホ用 クイック操作アクションバー (タップ選択時) -->
+  <div id="mobile-action-bar" class="fixed bottom-3 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-3 py-1.5 rounded-full shadow-2xl z-40 hidden flex items-center gap-2 sm:gap-3 text-xs backdrop-blur-xs">
+    <button onclick="mobileQuickResize(-15)" class="px-2 py-1 hover:bg-white/20 rounded-md transition flex items-center gap-1 text-[11px]">
+      ➖ 15分減
+    </button>
+    <button onclick="mobileQuickResize(15)" class="px-2 py-1 hover:bg-white/20 rounded-md transition flex items-center gap-1 text-[11px]">
+      ➕ 15分増
+    </button>
+    <button onclick="mobileOpenTimeEditModal()" class="px-2 py-1 hover:bg-white/20 rounded-md transition flex items-center gap-1 text-[11px] text-amber-300">
+      ⏰ 時刻変更
+    </button>
+    <button onclick="mobileQuickDuplicate()" class="px-2 py-1 hover:bg-white/20 rounded-md transition flex items-center gap-1 text-[11px]">
+      📋 複製
+    </button>
+    <button onclick="mobileQuickDelete()" class="px-2 py-1 hover:bg-rose-500/40 text-rose-300 rounded-md transition flex items-center gap-1 text-[11px]">
+      🗑️ 削除
+    </button>
+    <button onclick="closeMobileActionBar()" class="p-1 hover:bg-white/20 rounded-full transition ml-1 text-slate-400 hover:text-white">
+      <i data-lucide="x" class="w-3.5 h-3.5"></i>
+    </button>
+  </div>
+
+  <!-- 1. タスク開始・終了時間変更モーダル -->
+  <div id="modal-task-time" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95">
+      <div class="bg-slate-900 text-white p-3.5 flex items-center justify-between">
+        <h3 class="font-bold text-xs flex items-center gap-1.5">
+          <i data-lucide="clock-3" class="w-4 h-4 text-indigo-400"></i> タスク時間・種類の変更
+        </h3>
+        <button onclick="closeTaskTimeModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="form-edit-task-time" class="p-4 space-y-3">
+        <input type="hidden" id="edit-task-id">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-700 mb-1">タスク名</label>
+          <input type="text" id="edit-task-title" required class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold text-slate-700 mb-1">種類 (カテゴリ)</label>
+          <select id="edit-task-category" class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            <option value="desk">🖥️ デスクワーク</option>
+            <option value="meeting">👥 会議・打合せ</option>
+            <option value="field">👷 現場仕事</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold text-slate-700 mb-1">マトリクス優先度</label>
+          <select id="edit-task-matrix" class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            <option value="">未指定</option>
+            <option value="q1">第1領域：すぐやる (緊急×重要)</option>
+            <option value="q2">第2領域：計画 (重要)</option>
+            <option value="q3">第3領域：効率化・委任 (緊急)</option>
+            <option value="q4">第4領域：後回し・見直し</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 mb-1">開始時刻</label>
+            <input type="time" id="edit-task-start" step="900" required class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-700 mb-1">終了時刻</label>
+            <input type="time" id="edit-task-end" step="900" required class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="closeTaskTimeModal()" class="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">キャンセル</button>
+          <button type="submit" class="px-3.5 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs">保存する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. カレンダー大枠予定登録 モーダル -->
+  <div id="modal-calendar-event" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95">
+      <div class="bg-slate-900 text-white p-4 flex items-center justify-between">
+        <h3 class="font-bold text-sm flex items-center gap-1.5">
+          <i data-lucide="calendar-plus" class="w-4 h-4 text-indigo-400"></i> カレンダーに大枠予定を追加
+        </h3>
+        <button onclick="closeCalendarModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="form-calendar-event" class="p-4 sm:p-5 space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">予定・会議名</label>
+          <input type="text" id="cal-input-title" placeholder="例: 月次全体報告会、現場視察など" required
+            class="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">日付</label>
+            <input type="date" id="cal-input-date" required class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">種類</label>
+            <select id="cal-input-category" class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+              <option value="meeting">👥 会議・打合せ</option>
+              <option value="field">👷 現場仕事</option>
+              <option value="desk">🖥️ デスクワーク</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">開始時刻</label>
+            <input type="time" id="cal-input-start" value="10:00" step="900" required class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">終了時刻</label>
+            <input type="time" id="cal-input-end" value="11:30" step="900" required class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+
+        <div class="p-2.5 bg-indigo-50/70 rounded-xl border border-indigo-100 text-[11px] text-indigo-700 flex items-start gap-1.5">
+          <i data-lucide="info" class="w-4 h-4 flex-none mt-0.5"></i>
+          <span>カレンダーに登録された予定は、該当日の日別タイムライン「計画 (Plan)」に優先的に自動同期されます。</span>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" onclick="closeCalendarModal()" class="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">キャンセル</button>
+          <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs">登録する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. ルーティンワーク管理 モーダル -->
+  <div id="modal-routine" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
+      <div class="bg-slate-900 text-white p-4 flex items-center justify-between flex-none">
+        <h3 class="font-bold text-sm flex items-center gap-1.5">
+          <i data-lucide="repeat" class="w-4 h-4 text-indigo-400"></i> ルーティンワーク設定（毎日の自動投入）
+        </h3>
+        <button onclick="closeRoutineModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-4 overflow-y-auto space-y-4 flex-1">
+        <!-- 新規ルーティン追加 -->
+        <form id="form-add-routine" class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5">
+          <h4 class="text-xs font-bold text-slate-700 flex items-center gap-1">
+            <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-indigo-600"></i> 新しいルーティンを追加
+          </h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input type="text" id="routine-title" placeholder="例: 朝礼・メールチェック、夕方日報" required
+              class="px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white sm:col-span-2">
+            <div>
+              <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">種類</label>
+              <select id="routine-category" class="w-full px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white">
+                <option value="meeting">👥 会議・打合せ</option>
+                <option value="desk">🖥️ デスクワーク</option>
+                <option value="field">👷 現場仕事</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">繰り返し頻度</label>
+              <select id="routine-frequency" class="w-full px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white">
+                <option value="everyday">毎日 (土日含む)</option>
+                <option value="weekdays" selected>平日のみ (月〜金)</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">開始時刻</label>
+              <input type="time" id="routine-start" value="09:00" step="900" required class="w-full px-2 py-1 text-xs border border-slate-300 rounded-lg">
+            </div>
+            <div>
+              <label class="block text-[10px] font-semibold text-slate-500 mb-0.5">終了時刻</label>
+              <input type="time" id="routine-end" value="09:30" step="900" required class="w-full px-2 py-1 text-xs border border-slate-300 rounded-lg">
+            </div>
+          </div>
+          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-1.5 rounded-lg transition shadow-xs">
+            ルーティンを追加
+          </button>
+        </form>
+
+        <!-- ルーティン一覧 -->
+        <div>
+          <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center justify-between">
+            <span>登録済みのルーティン一覧</span>
+            <span id="routine-count-badge" class="text-[10px] text-slate-400 font-normal">0件</span>
+          </h4>
+          <div id="routine-list" class="space-y-2">
+            <!-- JSで動的生成 -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. クラウド端末間・Teams共同同期 モーダル -->
+  <div id="modal-sync" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95">
+      <div class="bg-slate-900 text-white p-4 flex items-center justify-between">
+        <h3 class="font-bold text-sm flex items-center gap-1.5">
+          <i data-lucide="refresh-cw" class="w-4 h-4 text-emerald-400"></i> クラウドリアルタイム共同同期
+        </h3>
+        <button onclick="closeSyncModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-4 sm:p-5 space-y-4 text-xs">
+        <div class="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl leading-relaxed">
+          <strong>PC・スマホ・Teamsでリアルタイム共同編集：</strong><br>
+          チーム共通の「同期キー」を入力して「同期に接続」を押すと、全メンバーおよび端末間で予定・タスクがリアルタイムに共有されます。
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">現在の同期キー（共有コード）</label>
+          <div class="flex items-center gap-2">
+            <input type="text" id="sync-key-input" class="flex-1 px-3 py-2 bg-slate-100 font-mono text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-800" placeholder="例: team-plan-2026">
+            <button type="button" onclick="copySyncKey()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition flex items-center gap-1">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>コピー
+            </button>
+          </div>
+          <p id="copy-status-msg" class="text-[10px] text-emerald-600 font-bold mt-1 hidden">✓ 同期キーをクリップボードにコピーしました！</p>
+        </div>
+
+        <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+          <button type="button" onclick="generateNewSyncKey()" class="text-slate-500 hover:text-slate-800 underline text-[11px]">
+            新しいキーを生成
+          </button>
+          <div class="flex gap-2">
+            <button type="button" onclick="closeSyncModal()" class="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold">閉じる</button>
+            <button type="button" onclick="applySyncKey()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-xs transition">同期に接続する</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ========== 定数・環境設定 ========== */
+    const START_HOUR = 5; // 05:00
+    const END_HOUR = 24;  // 24:00
+    const SLOT_HEIGHT = 20; // 15分 = 20px
+
+    const CATEGORY_MAP = {
+      desk: { label: 'デスクワーク', icon: '🖥️', bg: 'bg-indigo-50 border-indigo-200 text-indigo-800' },
+      meeting: { label: '会議・打合せ', icon: '👥', bg: 'bg-purple-50 border-purple-200 text-purple-800' },
+      field: { label: '現場仕事', icon: '👷', bg: 'bg-amber-50 border-amber-200 text-amber-800' }
+    };
+
+    const COLOR_PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
+
+    /* ========== アプリケーション 状態管理 ========== */
+    let state = {
+      activeView: 'daily', // 'daily' | 'calendar' | 'matrix'
+      currentDate: getTodayDateStr(), // YYYY-MM-DD
+      syncKey: localStorage.getItem('plansync_synckey') || generateRandomKey(),
+      tasks: [],          // タスク (lane: 'plan'|'actual'|'inbox', matrixZone: 'q1'|'q2'|'q3'|'q4'|null)
+      calendarEvents: [], // 大枠予定
+      routines: [],       // ルーティン設定
+      draggedTaskId: null,
+      selectedTaskId: null,
+      isCopying: false
+    };
+
+    let fbDb = null;
+    let fbAuth = null;
+    let fbUnsubscribe = null;
+
+    function getTodayDateStr() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function formatTimeMinutes(mins) {
+      const h = String(Math.floor(mins / 60)).padStart(2, '0');
+      const m = String(mins % 60).padStart(2, '0');
+      return `${h}:${m}`;
+    }
+
+    function timeStringToMinutes(timeStr) {
+      if (!timeStr) return 540;
+      const [h, m] = timeStr.split(':').map(Number);
+      return (h * 60) + (m || 0);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+
+    function generateRandomKey() {
+      const k = 'plan-' + Math.random().toString(36).substring(2, 8);
+      localStorage.setItem('plansync_synckey', k);
+      return k;
+    }
+
+    async function initCloudSync() {
+      try {
+        if (!window._fb) return;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'plansync-default-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        if (!firebaseConfig) return;
+
+        const app = window._fb.initializeApp(firebaseConfig);
+        fbDb = window._fb.getFirestore(app);
+        fbAuth = window._fb.getAuth(app);
+
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await window._fb.signInWithCustomToken(fbAuth, __initial_auth_token);
+        } else {
+          await window._fb.signInAnonymously(fbAuth);
+        }
+
+        listenToCloudData(appId, state.syncKey);
+      } catch (err) {
+        console.warn('クラウド同期の初期化スキップ (ローカル動作):', err);
+      }
+    }
+
+    function listenToCloudData(appId, key) {
+      if (!fbDb) return;
+      if (fbUnsubscribe) fbUnsubscribe();
+
+      const docRef = window._fb.doc(fbDb, 'artifacts', appId, 'public', 'data', 'sync_' + key);
+
+      fbUnsubscribe = window._fb.onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data && data.updatedAt) {
+            state.tasks = data.tasks || [];
+            state.calendarEvents = data.calendarEvents || [];
+            state.routines = data.routines || [];
+            renderAll(true);
+          }
+        }
+      }, (err) => {
+        console.warn('同期受信エラー:', err);
+      });
+    }
+
+    function pushToCloud() {
+      if (!fbDb || !fbAuth || !fbAuth.currentUser) return;
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'plansync-default-app';
+      const docRef = window._fb.doc(fbDb, 'artifacts', appId, 'public', 'data', 'sync_' + state.syncKey);
+
+      window._fb.setDoc(docRef, {
+        tasks: state.tasks,
+        calendarEvents: state.calendarEvents,
+        routines: state.routines,
+        updatedAt: Date.now()
+      }, { merge: true }).catch(err => {
+        console.warn('クラウド同期プッシュエラー:', err);
+      });
+    }
+
+    function initTimelineGrid() {
+      const labelsContainer = document.getElementById('timeline-labels');
+      labelsContainer.innerHTML = '';
+      const totalHours = END_HOUR - START_HOUR;
+
+      for (let h = START_HOUR; h < END_HOUR; h++) {
+        const hBlock = document.createElement('div');
+        hBlock.style.height = `${SLOT_HEIGHT * 4}px`;
+        hBlock.className = 'border-b border-slate-200 text-right pr-2 pt-1 text-[11px] font-bold text-slate-400 select-none';
+        hBlock.textContent = `${String(h).padStart(2, '0')}:00`;
+        labelsContainer.appendChild(hBlock);
+      }
+
+      const totalHeight = totalHours * 4 * SLOT_HEIGHT;
+      document.getElementById('plan-lane').style.height = `${totalHeight}px`;
+      document.getElementById('act-lane').style.height = `${totalHeight}px`;
+      labelsContainer.style.height = `${totalHeight}px`;
+    }
+
+    function syncExternalEventsToPlan() {
+      const currDateStr = state.currentDate;
+      const targetDate = new Date(currDateStr);
+      const isWeekend = targetDate.getDay() === 0 || targetDate.getDay() === 6;
+
+      // 1. カレンダー大枠予定の同期
+      state.calendarEvents.filter(e => e.date === currDateStr).forEach(ev => {
+        const exists = state.tasks.some(t => t.calendarEventId === ev.id && t.date === currDateStr);
+        if (!exists) {
+          state.tasks.push({
+            id: 'task_cal_' + ev.id + '_' + Date.now(),
+            calendarEventId: ev.id,
+            title: ev.title,
+            category: ev.category || 'meeting',
+            duration: ev.duration || 60,
+            startMinutes: ev.startMinutes || 600,
+            date: currDateStr,
+            lane: 'plan',
+            matrixZone: null,
+            color: '#6366f1',
+            completed: false
+          });
+        }
+      });
+
+      // 2. ルーティンワークの自動投入
+      state.routines.forEach(rt => {
+        if (rt.frequency === 'weekdays' && isWeekend) return;
+        const routineTag = `rt_${rt.id}_${currDateStr}`;
+        const exists = state.tasks.some(t => t.routineTag === routineTag);
+        if (!exists) {
+          state.tasks.push({
+            id: 'task_' + routineTag,
+            routineTag: routineTag,
+            title: rt.title,
+            category: rt.category || 'desk',
+            duration: rt.duration || 30,
+            startMinutes: rt.startMinutes || 540,
+            date: currDateStr,
+            lane: 'plan',
+            matrixZone: null,
+            color: '#3b82f6',
+            completed: false
+          });
+        }
+      });
+    }
+
+    function createTaskCardElement(task) {
+      const card = document.createElement('div');
+      card.id = `task-card-${task.id}`;
+      card.dataset.id = task.id;
+      card.className = `task-card rounded-lg border shadow-xs transition-all flex flex-col justify-between overflow-hidden cursor-grab active:cursor-grabbing group relative ${
+        task.completed ? 'task-completed' : 'bg-white'
+      }`;
+      card.style.borderLeftWidth = '5px';
+      card.style.borderLeftColor = task.color || '#3b82f6';
+      card.draggable = true;
+
+      const catInfo = CATEGORY_MAP[task.category] || CATEGORY_MAP.desk;
+
+      if (task.lane === 'plan' || task.lane === 'actual') {
+        const topPx = Math.max(0, ((task.startMinutes - (START_HOUR * 60)) / 15) * SLOT_HEIGHT);
+        const heightPx = Math.max(SLOT_HEIGHT, (task.duration / 15) * SLOT_HEIGHT);
+        card.style.position = 'absolute';
+        card.style.top = `${topPx}px`;
+        card.style.left = '4px';
+        card.style.right = '4px';
+        card.style.height = `${heightPx - 2}px`;
+        card.style.padding = '4px 6px';
+        card.style.zIndex = '10';
+      } else {
+        card.style.position = 'relative';
+        card.style.height = 'auto';
+        card.style.padding = '8px 10px';
+      }
+
+      const startStr = formatTimeMinutes(task.startMinutes);
+      const endStr = formatTimeMinutes(task.startMinutes + task.duration);
+      const zoneLabelMap = { q1: 'Q1', q2: 'Q2', q3: 'Q3', q4: 'Q4' };
+
+      card.innerHTML = `
+        <div class="flex items-center justify-between gap-1 leading-tight min-w-0">
+          <div class="flex items-center gap-1.5 min-w-0 flex-1">
+            <input type="checkbox" class="task-check-input w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-0 cursor-pointer flex-none" ${task.completed ? 'checked' : ''}>
+            <span class="text-[10px] px-1 py-0.2 rounded border ${catInfo.bg} flex items-center gap-0.5 flex-none font-medium">
+              ${catInfo.icon} <span class="hidden sm:inline">${catInfo.label}</span>
+            </span>
+            ${task.matrixZone ? `<span class="text-[9px] px-1 py-0.2 rounded bg-slate-100 border border-slate-300 text-slate-600 font-bold flex-none">${zoneLabelMap[task.matrixZone]}</span>` : ''}
+            <span class="task-title-text text-xs font-bold truncate text-slate-800">${escapeHtml(task.title)}</span>
+          </div>
+          <!-- アクションツールバー -->
+          <div class="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 flex-none">
+            <button class="color-change-btn p-0.5 hover:bg-slate-100 rounded text-[11px]" title="カラー変更">🎨</button>
+            <button class="time-edit-btn p-0.5 hover:bg-slate-100 rounded text-[11px]" title="時間・種別変更">⏰</button>
+            <button class="delete-btn p-0.5 hover:bg-rose-50 hover:text-rose-600 rounded text-[11px]" title="削除">✕</button>
+          </div>
+        </div>
+
+        <div class="flex items-end justify-between text-[10px] text-slate-500 mt-1 leading-none font-medium">
+          <span>${task.lane !== 'inbox' ? `${startStr} - ${endStr}` : ''}</span>
+          <span class="font-semibold text-slate-600">${task.duration}分</span>
+        </div>
+
+        <span class="copy-tag hidden absolute -top-1 -right-1 bg-emerald-500 text-white font-bold text-[9px] px-1 rounded shadow pointer-events-none z-20">
+          + 複製
+        </span>
+
+        <!-- 下端リサイズハンドル (タイムライン配置時のみ) -->
+        ${(task.lane === 'plan' || task.lane === 'actual') ? '<div class="card-resize-handle absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize hover:bg-indigo-400/50"></div>' : ''}
+      `;
+
+      // イベント設定
+      const checkInput = card.querySelector('.task-check-input');
+      checkInput.addEventListener('click', e => e.stopPropagation());
+      checkInput.addEventListener('change', e => {
+        task.completed = e.target.checked;
+        saveData();
+        renderAll();
+      });
+
+      card.querySelector('.color-change-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        toggleColorPicker(card, task.id);
+      });
+
+      card.querySelector('.time-edit-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        openTaskTimeModal(task.id);
+      });
+
+      card.querySelector('.delete-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        deleteTask(task.id);
+      });
+
+      card.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        inlineEditTitle(card, task);
+      });
+
+      card.addEventListener('click', () => {
+        selectTaskForMobile(task.id);
+      });
+
+      card.addEventListener('dragstart', handleDragStart);
+      card.addEventListener('dragend', handleDragEnd);
+
+      const resizeHandle = card.querySelector('.card-resize-handle');
+      if (resizeHandle) {
+        setupCardResizing(resizeHandle, task);
+      }
+
+      return card;
+    }
+
+    function inlineEditTitle(card, task) {
+      const titleSpan = card.querySelector('.task-title-text');
+      if (!titleSpan) return;
+
+      const currentText = task.title;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = currentText;
+      input.className = 'text-xs font-bold px-1 py-0.5 border border-indigo-400 rounded outline-none w-full bg-white';
+
+      const finishEdit = () => {
+        const val = input.value.trim();
+        task.title = val || currentText;
+        saveData();
+        renderAll();
+      };
+
+      input.addEventListener('blur', finishEdit);
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') finishEdit();
+      });
+
+      titleSpan.replaceWith(input);
+      input.focus();
+    }
+
+    function toggleColorPicker(card, taskId) {
+      const exist = card.querySelector('.color-palette-popover');
+      if (exist) { exist.remove(); return; }
+
+      const popover = document.createElement('div');
+      popover.className = 'color-palette-popover absolute top-6 right-2 bg-white border border-slate-200 rounded-lg p-1.5 shadow-xl grid grid-cols-4 gap-1.5 z-50';
+
+      COLOR_PALETTE.forEach(c => {
+        const btn = document.createElement('button');
+        btn.className = 'w-4 h-4 rounded-full border border-black/10 hover:scale-125 transition-transform';
+        btn.style.backgroundColor = c;
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const task = state.tasks.find(t => t.id === taskId);
+          if (task) {
+            task.color = c;
+            saveData();
+            renderAll();
+          }
+        };
+        popover.appendChild(btn);
+      });
+
+      card.appendChild(popover);
+    }
+
+    function handleDragStart(e) {
+      state.draggedTaskId = this.dataset.id;
+      this.classList.add('dragging');
+
+      state.isCopying = e.ctrlKey || e.metaKey;
+      if (state.isCopying) {
+        this.classList.add('dragging-copy');
+        const tag = this.querySelector('.copy-tag');
+        if (tag) tag.classList.remove('hidden');
+      }
+
+      e.dataTransfer.setData('text/plain', state.draggedTaskId);
+      e.dataTransfer.effectAllowed = state.isCopying ? 'copy' : 'move';
+    }
+
+    function handleDragEnd() {
+      this.classList.remove('dragging', 'dragging-copy');
+      const tag = this.querySelector('.copy-tag');
+      if (tag) tag.classList.add('hidden');
+
+      state.draggedTaskId = null;
+      state.isCopying = false;
+    }
+
+    window.addEventListener('keydown', e => {
+      if ((e.key === 'Control' || e.key === 'Meta') && state.draggedTaskId) {
+        state.isCopying = true;
+        const c = document.getElementById(`task-card-${state.draggedTaskId}`);
+        if (c) {
+          c.classList.add('dragging-copy');
+          const t = c.querySelector('.copy-tag');
+          if (t) t.classList.remove('hidden');
+        }
+      }
+    });
+
+    window.addEventListener('keyup', e => {
+      if (e.key === 'Control' || e.key === 'Meta') {
+        state.isCopying = false;
+        if (state.draggedTaskId) {
+          const c = document.getElementById(`task-card-${state.draggedTaskId}`);
+          if (c) {
+            c.classList.remove('dragging-copy');
+            const t = c.querySelector('.copy-tag');
+            if (t) t.classList.add('hidden');
+          }
+        }
+      }
+    });
+
+    function setupDropTargets() {
+      const dropLanes = [
+        { el: document.getElementById('plan-lane'), lane: 'plan' },
+        { el: document.getElementById('act-lane'), lane: 'actual' },
+        { el: document.getElementById('inbox-dropzone'), lane: 'inbox' }
+      ];
+
+      dropLanes.forEach(({ el, lane }) => {
+        el.addEventListener('dragover', e => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = (e.ctrlKey || e.metaKey || state.isCopying) ? 'copy' : 'move';
+        });
+
+        el.addEventListener('drop', e => {
+          e.preventDefault();
+          const taskId = e.dataTransfer.getData('text/plain') || state.draggedTaskId;
+          if (!taskId) return;
+
+          const sourceTask = state.tasks.find(t => t.id === taskId);
+          if (!sourceTask) return;
+
+          const isCopy = e.ctrlKey || e.metaKey || state.isCopying;
+          let newStartMins = 540; // 09:00
+
+          if (lane === 'plan' || lane === 'actual') {
+            const rect = el.getBoundingClientRect();
+            const offsetY = e.clientY - rect.top;
+            const slotIndex = Math.max(0, Math.floor(offsetY / SLOT_HEIGHT));
+            newStartMins = (START_HOUR * 60) + (slotIndex * 15);
+          }
+
+          if (isCopy) {
+            const copyTask = {
+              ...JSON.parse(JSON.stringify(sourceTask)),
+              id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+              lane: lane,
+              date: state.currentDate,
+              startMinutes: newStartMins
+            };
+            state.tasks.push(copyTask);
+          } else {
+            sourceTask.lane = lane;
+            sourceTask.date = state.currentDate;
+            sourceTask.startMinutes = newStartMins;
+          }
+
+          saveData();
+          renderAll();
+        });
+      });
+
+      // マトリクス領域ドロップ
+      document.querySelectorAll('.matrix-zone').forEach(mZone => {
+        mZone.addEventListener('dragover', e => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        });
+
+        mZone.addEventListener('drop', e => {
+          e.preventDefault();
+          const taskId = e.dataTransfer.getData('text/plain') || state.draggedTaskId;
+          const task = state.tasks.find(t => t.id === taskId);
+          if (!task) return;
+
+          task.matrixZone = mZone.dataset.matrixZone;
+          task.date = state.currentDate;
+          saveData();
+          renderAll();
+        });
+      });
+
+      // ゴミ箱ドロップ
+      const trash = document.getElementById('trash-dropzone');
+      trash.addEventListener('dragover', e => e.preventDefault());
+      trash.addEventListener('drop', e => {
+        e.preventDefault();
+        const taskId = e.dataTransfer.getData('text/plain') || state.draggedTaskId;
+        if (taskId) {
+          deleteTask(taskId);
+        }
+      });
+    }
+
+    function setupCardResizing(handle, task) {
+      handle.addEventListener('mousedown', e => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        const startY = e.clientY;
+        const initialDuration = task.duration;
+
+        function onMouseMove(moveEvent) {
+          const deltaY = moveEvent.clientY - startY;
+          const deltaMinutes = Math.round(deltaY / SLOT_HEIGHT) * 15;
+          const newDur = Math.max(15, Math.min(360, initialDuration + deltaMinutes));
+          task.duration = newDur;
+          renderAll();
+        }
+
+        function onMouseUp() {
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+          saveData();
+        }
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+      });
+    }
+
+    function renderDailyTasks() {
+      const planLane = document.getElementById('plan-lane');
+      const actLane = document.getElementById('act-lane');
+      const inboxBox = document.getElementById('inbox-dropzone');
+
+      planLane.innerHTML = '';
+      actLane.innerHTML = '';
+      inboxBox.querySelectorAll('.task-card').forEach(c => c.remove());
+
+      let inboxCount = 0;
+      let planMinutes = 0;
+      let actMinutes = 0;
+
+      state.tasks.forEach(task => {
+        if (task.lane === 'inbox') {
+          inboxBox.appendChild(createTaskCardElement(task));
+          inboxCount++;
+        } else if (task.date === state.currentDate) {
+          if (task.lane === 'plan') {
+            planLane.appendChild(createTaskCardElement(task));
+            planMinutes += task.duration;
+          } else if (task.lane === 'actual') {
+            actLane.appendChild(createTaskCardElement(task));
+            actMinutes += task.duration;
+          }
+        }
+      });
+
+      document.getElementById('inbox-empty-notice').style.display = inboxCount === 0 ? 'flex' : 'none';
+      document.getElementById('inbox-count-badge').textContent = inboxCount;
+      document.getElementById('mob-inbox-badge').textContent = inboxCount;
+
+      document.getElementById('plan-total-display').textContent = `${Math.floor(planMinutes / 60)}h ${planMinutes % 60}m`;
+      document.getElementById('act-total-display').textContent = `${Math.floor(actMinutes / 60)}h ${actMinutes % 60}m`;
+    }
+
+    function renderMatrixView() {
+      document.getElementById('matrix-current-date-label').textContent = state.currentDate;
+      const zones = {
+        q1: document.getElementById('matrix-zone-q1'),
+        q2: document.getElementById('matrix-zone-q2'),
+        q3: document.getElementById('matrix-zone-q3'),
+        q4: document.getElementById('matrix-zone-q4')
+      };
+
+      Object.values(zones).forEach(z => z.innerHTML = '');
+      const counts = { q1: 0, q2: 0, q3: 0, q4: 0 };
+
+      // 当日のタスクおよびインボックスタスクの中から、マトリクス領域に指定されているものを配置
+      const matrixTasks = state.tasks.filter(t => t.matrixZone && (t.lane === 'inbox' || t.date === state.currentDate));
+
+      matrixTasks.forEach(task => {
+        const z = zones[task.matrixZone] || zones.q1;
+        z.appendChild(createTaskCardElement(task));
+        counts[task.matrixZone || 'q1']++;
+      });
+
+      document.getElementById('count-q1').textContent = `${counts.q1}件`;
+      document.getElementById('count-q2').textContent = `${counts.q2}件`;
+      document.getElementById('count-q3').textContent = `${counts.q3}件`;
+      document.getElementById('count-q4').textContent = `${counts.q4}件`;
+
+      // 未整理タスク（日別インボックスまたは当日のタスクで、matrixZoneが未設定のもの）
+      const tray = document.getElementById('matrix-unassigned-tray');
+      tray.innerHTML = '';
+      const unassignedTasks = state.tasks.filter(t => !t.matrixZone && (t.lane === 'inbox' || t.date === state.currentDate));
+      document.getElementById('matrix-inbox-count').textContent = `${unassignedTasks.length}件`;
+
+      if (unassignedTasks.length === 0) {
+        tray.innerHTML = '<span class="text-xs text-slate-400 italic py-1">未整理のタスクはありません。上の「追加」ボタンから登録できます。</span>';
+      } else {
+        unassignedTasks.forEach(t => {
+          const chip = document.createElement('div');
+          chip.className = 'px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 shadow-2xs hover:border-indigo-400 flex items-center gap-2 cursor-pointer transition';
+          chip.draggable = true;
+          chip.dataset.id = t.id;
+          chip.innerHTML = `
+            <span>${escapeHtml(t.title)}</span>
+            <div class="flex items-center gap-0.5">
+              <button onclick="assignTaskToQuadrant('${t.id}', 'q1')" class="px-1 text-[9px] bg-rose-100 text-rose-700 rounded hover:bg-rose-200" title="第1領域へ">Q1</button>
+              <button onclick="assignTaskToQuadrant('${t.id}', 'q2')" class="px-1 text-[9px] bg-blue-100 text-blue-700 rounded hover:bg-blue-200" title="第2領域へ">Q2</button>
+              <button onclick="assignTaskToQuadrant('${t.id}', 'q3')" class="px-1 text-[9px] bg-amber-100 text-amber-700 rounded hover:bg-amber-200" title="第3領域へ">Q3</button>
+              <button onclick="assignTaskToQuadrant('${t.id}', 'q4')" class="px-1 text-[9px] bg-slate-200 text-slate-700 rounded hover:bg-slate-300" title="第4領域へ">Q4</button>
+            </div>
+          `;
+          chip.addEventListener('dragstart', handleDragStart);
+          chip.addEventListener('dragend', handleDragEnd);
+          tray.appendChild(chip);
+        });
+      }
+
+      lucide.createIcons();
+    }
+
+    function promptAddMatrixTask(quadrant) {
+      const qNames = { q1: '第1領域 (すぐやる)', q2: '第2領域 (計画)', q3: '第3領域 (委任/効率化)', q4: '第4領域 (後回し)' };
+      const title = window.prompt(`${qNames[quadrant]} に追加するタスク名を入力してください:`);
+      if (!title || !title.trim()) return;
+
+      state.tasks.push({
+        id: 'task_' + Date.now(),
+        title: title.trim(),
+        category: 'desk',
+        duration: 30,
+        startMinutes: 540,
+        date: state.currentDate,
+        lane: 'inbox',
+        matrixZone: quadrant,
+        color: COLOR_PALETTE[Math.floor(Math.random() * COLOR_PALETTE.length)],
+        completed: false
+      });
+
+      saveData();
+      renderAll();
+    }
+
+    function assignTaskToQuadrant(taskId, quadrant) {
+      const task = state.tasks.find(t => t.id === taskId);
+      if (!task) return;
+      task.matrixZone = quadrant;
+      saveData();
+      renderAll();
+    }
+
+    function openSyncModal() {
+      document.getElementById('sync-key-input').value = state.syncKey;
+      document.getElementById('modal-sync').classList.remove('hidden');
+    }
+
+    function closeSyncModal() {
+      document.getElementById('modal-sync').classList.add('hidden');
+      document.getElementById('copy-status-msg').classList.add('hidden');
+    }
+
+    function copySyncKey() {
+      const input = document.getElementById('sync-key-input');
+      input.select();
+      document.execCommand('copy');
+      document.getElementById('copy-status-msg').classList.remove('hidden');
+    }
+
+    function generateNewSyncKey() {
+      const newKey = generateRandomKey();
+      document.getElementById('sync-key-input').value = newKey;
+    }
+
+    function applySyncKey() {
+      const inputVal = document.getElementById('sync-key-input').value.trim();
+      if (!inputVal) return;
+      state.syncKey = inputVal;
+      localStorage.setItem('plansync_synckey', state.syncKey);
+
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'plansync-default-app';
+      listenToCloudData(appId, state.syncKey);
+      pushToCloud();
+      closeSyncModal();
+    }
+
+    function renderCalendarView() {
+      const grid = document.getElementById('calendar-cells-grid');
+      grid.innerHTML = '';
+
+      const [y, m] = state.currentDate.split('-').map(Number);
+      document.getElementById('calendar-month-heading').innerHTML = `<i data-lucide="calendar" class="w-5 h-5 text-indigo-600"></i> ${y}年 ${m}月`;
+
+      const firstDay = new Date(y, m - 1, 1).getDay();
+      const totalDays = new Date(y, m, 0).getDate();
+
+      for (let i = 0; i < firstDay; i++) {
+        const dummy = document.createElement('div');
+        dummy.className = 'bg-slate-100/60 p-2 min-h-[90px] border-b border-r border-slate-200';
+        grid.appendChild(dummy);
+      }
+
+      for (let day = 1; day <= totalDays; day++) {
+        const cellDate = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const isToday = cellDate === getTodayDateStr();
+        const isSelected = cellDate === state.currentDate;
+
+        const cell = document.createElement('div');
+        cell.className = `p-1.5 sm:p-2 min-h-[90px] sm:min-h-[105px] bg-white hover:bg-slate-50 transition cursor-pointer flex flex-col justify-between border-b border-r border-slate-200 ${
+          isSelected ? 'ring-2 ring-indigo-500 z-10' : ''
+        }`;
+
+        cell.onclick = () => {
+          state.currentDate = cellDate;
+          switchView('daily');
+        };
+
+        const dayEvts = state.calendarEvents.filter(e => e.date === cellDate);
+
+        cell.innerHTML = `
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold ${isToday ? 'bg-indigo-600 text-white rounded-full w-5 h-5 flex items-center justify-center' : 'text-slate-700'}">${day}</span>
+            ${dayEvts.length > 0 ? `<span class="text-[9px] bg-indigo-100 text-indigo-700 font-bold px-1 rounded-full">${dayEvts.length}</span>` : ''}
+          </div>
+          <div class="flex-1 space-y-1 overflow-hidden">
+            ${dayEvts.slice(0, 3).map(ev => `
+              <div class="text-[9px] px-1 py-0.5 rounded border truncate bg-indigo-50 border-indigo-200 text-indigo-700 font-medium">
+                ${escapeHtml(ev.title)}
+              </div>
+            `).join('')}
+            ${dayEvts.length > 3 ? `<div class="text-[8px] text-slate-400 font-semibold">+他 ${dayEvts.length - 3} 件</div>` : ''}
+          </div>
+        `;
+        grid.appendChild(cell);
+      }
+
+      lucide.createIcons();
+    }
+
+    function renderRoutinesList() {
+      const container = document.getElementById('routine-list');
+      container.innerHTML = '';
+      document.getElementById('routine-count-badge').textContent = `${state.routines.length}件`;
+
+      if (state.routines.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400 text-center py-3">登録されたルーティンはありません。</p>';
+        return;
+      }
+
+      state.routines.forEach(rt => {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs';
+        const startStr = formatTimeMinutes(rt.startMinutes);
+        const endStr = formatTimeMinutes(rt.startMinutes + rt.duration);
+
+        item.innerHTML = `
+          <div class="min-w-0">
+            <div class="font-bold text-slate-800 truncate">${escapeHtml(rt.title)}</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">
+              ${startStr} - ${endStr} (${rt.duration}分) ｜ ${rt.frequency === 'weekdays' ? '平日のみ' : '毎日'}
+            </div>
+          </div>
+          <button onclick="deleteRoutine('${rt.id}')" class="text-slate-400 hover:text-rose-600 p-1 transition" title="削除">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        `;
+        container.appendChild(item);
+      });
+
+      lucide.createIcons();
+    }
+
+    function switchView(viewName) {
+      state.activeView = viewName;
+
+      document.getElementById('view-daily-container').classList.add('hidden');
+      document.getElementById('view-calendar-container').classList.add('hidden');
+      document.getElementById('view-matrix-container').classList.add('hidden');
+
+      document.querySelectorAll('.view-tab-btn').forEach(btn => {
+        btn.className = 'view-tab-btn px-2.5 sm:px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 text-slate-600 hover:text-slate-900';
+      });
+
+      if (viewName === 'daily') {
+        document.getElementById('view-daily-container').classList.remove('hidden');
+        document.getElementById('tab-daily').className = 'view-tab-btn px-2.5 sm:px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 bg-white text-indigo-600 shadow-xs font-bold';
+      } else if (viewName === 'calendar') {
+        document.getElementById('view-calendar-container').classList.remove('hidden');
+        document.getElementById('tab-calendar').className = 'view-tab-btn px-2.5 sm:px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 bg-white text-indigo-600 shadow-xs font-bold';
+        renderCalendarView();
+      } else if (viewName === 'matrix') {
+        document.getElementById('view-matrix-container').classList.remove('hidden');
+        document.getElementById('tab-matrix').className = 'view-tab-btn px-2.5 sm:px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 bg-white text-indigo-600 shadow-xs font-bold';
+        renderMatrixView();
+      }
+
+      renderAll();
+    }
+
+    function openTaskTimeModal(taskId) {
+      const task = state.tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      document.getElementById('edit-task-id').value = task.id;
+      document.getElementById('edit-task-title').value = task.title;
+      document.getElementById('edit-task-category').value = task.category || 'desk';
+      document.getElementById('edit-task-matrix').value = task.matrixZone || '';
+      document.getElementById('edit-task-start').value = formatTimeMinutes(task.startMinutes);
+      document.getElementById('edit-task-end').value = formatTimeMinutes(task.startMinutes + task.duration);
+
+      document.getElementById('modal-task-time').classList.remove('hidden');
+    }
+
+    function closeTaskTimeModal() {
+      document.getElementById('modal-task-time').classList.add('hidden');
+    }
+
+    document.getElementById('form-edit-task-time').addEventListener('submit', e => {
+      e.preventDefault();
+      const id = document.getElementById('edit-task-id').value;
+      const task = state.tasks.find(t => t.id === id);
+      if (!task) return;
+
+      task.title = document.getElementById('edit-task-title').value.trim();
+      task.category = document.getElementById('edit-task-category').value;
+      task.matrixZone = document.getElementById('edit-task-matrix').value || null;
+      const startM = timeStringToMinutes(document.getElementById('edit-task-start').value);
+      const endM = timeStringToMinutes(document.getElementById('edit-task-end').value);
+
+      task.startMinutes = startM;
+      task.duration = Math.max(15, endM - startM);
+
+      saveData();
+      closeTaskTimeModal();
+      renderAll();
+    });
+
+    function openCalendarModal() {
+      document.getElementById('cal-input-date').value = state.currentDate;
+      document.getElementById('modal-calendar-event').classList.remove('hidden');
+    }
+
+    function closeCalendarModal() {
+      document.getElementById('modal-calendar-event').classList.add('hidden');
+    }
+
+    document.getElementById('form-calendar-event').addEventListener('submit', e => {
+      e.preventDefault();
+      const title = document.getElementById('cal-input-title').value.trim();
+      const date = document.getElementById('cal-input-date').value;
+      const category = document.getElementById('cal-input-category').value;
+      const startM = timeStringToMinutes(document.getElementById('cal-input-start').value);
+      const endM = timeStringToMinutes(document.getElementById('cal-input-end').value);
+
+      state.calendarEvents.push({
+        id: 'cal_' + Date.now(),
+        title,
+        date,
+        category,
+        startMinutes: startM,
+        duration: Math.max(15, endM - startM)
+      });
+
+      saveData();
+      closeCalendarModal();
+      renderAll();
+    });
+
+    function openRoutineModal() {
+      renderRoutinesList();
+      document.getElementById('modal-routine').classList.remove('hidden');
+    }
+
+    function closeRoutineModal() {
+      document.getElementById('modal-routine').classList.add('hidden');
+    }
+
+    document.getElementById('form-add-routine').addEventListener('submit', e => {
+      e.preventDefault();
+      const title = document.getElementById('routine-title').value.trim();
+      const category = document.getElementById('routine-category').value;
+      const frequency = document.getElementById('routine-frequency').value;
+      const startM = timeStringToMinutes(document.getElementById('routine-start').value);
+      const endM = timeStringToMinutes(document.getElementById('routine-end').value);
+
+      state.routines.push({
+        id: 'rt_' + Date.now(),
+        title,
+        category,
+        frequency,
+        startMinutes: startM,
+        duration: Math.max(15, endM - startM)
+      });
+
+      saveData();
+      renderRoutinesList();
+      renderAll();
+      e.target.reset();
+    });
+
+    function deleteRoutine(id) {
+      state.routines = state.routines.filter(r => r.id !== id);
+      saveData();
+      renderRoutinesList();
+      renderAll();
+    }
+
+    function deleteTask(id) {
+      state.tasks = state.tasks.filter(t => t.id !== id);
+      saveData();
+      renderAll();
+    }
+
+    function selectTaskForMobile(taskId) {
+      state.selectedTaskId = taskId;
+      document.getElementById('mobile-action-bar').classList.remove('hidden');
+    }
+
+    function closeMobileActionBar() {
+      state.selectedTaskId = null;
+      document.getElementById('mobile-action-bar').classList.add('hidden');
+    }
+
+    function mobileQuickResize(mins) {
+      if (!state.selectedTaskId) return;
+      const t = state.tasks.find(x => x.id === state.selectedTaskId);
+      if (t) {
+        t.duration = Math.max(15, t.duration + mins);
+        saveData();
+        renderAll();
+      }
+    }
+
+    function mobileOpenTimeEditModal() {
+      if (!state.selectedTaskId) return;
+      openTaskTimeModal(state.selectedTaskId);
+      closeMobileActionBar();
+    }
+
+    function mobileQuickDuplicate() {
+      if (!state.selectedTaskId) return;
+      const orig = state.tasks.find(x => x.id === state.selectedTaskId);
+      if (orig) {
+        const copy = JSON.parse(JSON.stringify(orig));
+        copy.id = 'task_' + Date.now();
+        state.tasks.push(copy);
+        saveData();
+        renderAll();
+      }
+      closeMobileActionBar();
+    }
+
+    function mobileQuickDelete() {
+      if (!state.selectedTaskId) return;
+      deleteTask(state.selectedTaskId);
+      closeMobileActionBar();
+    }
+
+    function saveData() {
+      localStorage.setItem('plansync_v2_tasks', JSON.stringify(state.tasks));
+      localStorage.setItem('plansync_v2_cal', JSON.stringify(state.calendarEvents));
+      localStorage.setItem('plansync_v2_routines', JSON.stringify(state.routines));
+      pushToCloud();
+    }
+
+    function loadData() {
+      const savedTasks = localStorage.getItem('plansync_v2_tasks');
+      const savedCal = localStorage.getItem('plansync_v2_cal');
+      const savedRoutines = localStorage.getItem('plansync_v2_routines');
+
+      if (savedTasks) try { state.tasks = JSON.parse(savedTasks); } catch(e){}
+      if (savedCal) try { state.calendarEvents = JSON.parse(savedCal); } catch(e){}
+      if (savedRoutines) try { state.routines = JSON.parse(savedRoutines); } catch(e){}
+
+      if (!savedCal && !savedTasks) {
+        const today = getTodayDateStr();
+        state.calendarEvents = [
+          { id: 'c1', title: '社内プロジェクト進捗報告会', date: today, category: 'meeting', startMinutes: 600, duration: 90 }
+        ];
+        state.routines = [
+          { id: 'r1', title: '朝礼・タスク整理', category: 'desk', frequency: 'weekdays', startMinutes: 540, duration: 30 },
+          { id: 'r2', title: '夕方日報作成', category: 'desk', frequency: 'weekdays', startMinutes: 1050, duration: 30 }
+        ];
+        state.tasks = [
+          { id: 't1', title: '提案資料スライドの修正', category: 'desk', startMinutes: 540, duration: 60, date: null, lane: 'inbox', matrixZone: 'q1', color: '#3b82f6', completed: false },
+          { id: 't2', title: '現場安全パトロール・点検', category: 'field', startMinutes: 540, duration: 45, date: null, lane: 'inbox', matrixZone: 'q2', color: '#f59e0b', completed: false }
+        ];
+      }
+    }
+
+    function renderAll(skipSync = false) {
+      if (!skipSync) syncExternalEventsToPlan();
+      document.getElementById('date-picker').value = state.currentDate;
+
+      if (state.activeView === 'daily') {
+        renderDailyTasks();
+      } else if (state.activeView === 'calendar') {
+        renderCalendarView();
+      } else if (state.activeView === 'matrix') {
+        renderMatrixView();
+      }
+
+      lucide.createIcons();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadData();
+      initCloudSync();
+      initTimelineGrid();
+      setupDropTargets();
+
+      // 日付ピッカー & ナビゲーション
+      document.getElementById('date-picker').addEventListener('change', e => {
+        if (e.target.value) {
+          state.currentDate = e.target.value;
+          renderAll();
+        }
+      });
+
+      document.getElementById('prev-date-btn').addEventListener('click', () => {
+        const d = new Date(state.currentDate);
+        d.setDate(d.getDate() - 1);
+        state.currentDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        renderAll();
+      });
+
+      document.getElementById('next-date-btn').addEventListener('click', () => {
+        const d = new Date(state.currentDate);
+        d.setDate(d.getDate() + 1);
+        state.currentDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        renderAll();
+      });
+
+      document.getElementById('today-btn').addEventListener('click', () => {
+        state.currentDate = getTodayDateStr();
+        renderAll();
+      });
+
+      // ビュー切替ボタン
+      document.getElementById('tab-daily').addEventListener('click', () => switchView('daily'));
+      document.getElementById('tab-calendar').addEventListener('click', () => switchView('calendar'));
+      document.getElementById('tab-matrix').addEventListener('click', () => switchView('matrix'));
+
+      // モーダルオープンボタン
+      document.getElementById('open-calendar-modal-btn').addEventListener('click', openCalendarModal);
+      document.getElementById('open-routine-modal-btn').addEventListener('click', openRoutineModal);
+      document.getElementById('open-sync-modal-btn').addEventListener('click', openSyncModal);
+
+      // タスク追加フォーム
+      document.getElementById('add-task-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const titleInput = document.getElementById('input-task-title');
+        const catSelect = document.getElementById('input-task-category');
+        const durSelect = document.getElementById('input-task-duration');
+        const matrixSelect = document.getElementById('input-task-matrix');
+
+        state.tasks.push({
+          id: 'task_' + Date.now(),
+          title: titleInput.value.trim(),
+          category: catSelect.value,
+          duration: parseInt(durSelect.value, 10),
+          startMinutes: 540,
+          date: state.currentDate,
+          lane: 'inbox',
+          matrixZone: matrixSelect.value || null,
+          color: COLOR_PALETTE[Math.floor(Math.random() * COLOR_PALETTE.length)],
+          completed: false
+        });
+
+        titleInput.value = '';
+        matrixSelect.value = '';
+        saveData();
+        renderAll();
+      });
+
+      // スマホ用サブタブ切替
+      document.getElementById('mob-sub-schedule').addEventListener('click', function() {
+        document.getElementById('schedule-section').classList.remove('hidden');
+        document.getElementById('inbox-section').classList.add('hidden');
+        this.className = 'flex-1 py-2 text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50';
+        document.getElementById('mob-sub-inbox').className = 'flex-1 py-2 text-slate-500 border-b-2 border-transparent';
+      });
+
+      document.getElementById('mob-sub-inbox').addEventListener('click', function() {
+        document.getElementById('schedule-section').classList.add('hidden');
+        document.getElementById('inbox-section').classList.remove('hidden');
+        this.className = 'flex-1 py-2 text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50';
+        document.getElementById('mob-sub-schedule').className = 'flex-1 py-2 text-slate-500 border-b-2 border-transparent';
+      });
+
+      renderAll();
+    });
+  </script>
+</body>
+</html>
