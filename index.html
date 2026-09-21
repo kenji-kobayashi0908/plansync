@@ -52,7 +52,16 @@
     </div>
 
     <!-- Actions & Date Navigation -->
-    <div class="flex items-center gap-2 flex-wrap">
+    <div class="flex items-center gap-1.5 flex-wrap">
+      <!-- エクスポート / インポート -->
+      <button onclick="exportData()" class="px-2 py-1 text-xs bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 flex items-center gap-1 font-medium" title="データをファイルに保存">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i> 吐き出し
+      </button>
+      <label class="px-2 py-1 text-xs bg-gray-100 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-200 flex items-center gap-1 font-medium cursor-pointer" title="ファイルから読み込み">
+        <i data-lucide="upload" class="w-3.5 h-3.5"></i> 読込み
+        <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(event)">
+      </label>
+
       <button onclick="openSyncModal()" class="px-2.5 py-1 text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 flex items-center gap-1 font-medium">
         <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 共同・端末同期
       </button>
@@ -60,7 +69,7 @@
         <i data-lucide="repeat" class="w-3.5 h-3.5"></i> ルーティン
       </button>
 
-      <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-md p-0.5">
+      <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-md p-0.5 ml-1">
         <button onclick="changeDate(-1)" class="p-1 hover:bg-gray-200 rounded text-gray-600"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
         <input type="date" id="datePicker" class="text-xs bg-transparent border-none outline-none font-medium px-1 text-gray-700" onchange="onDatePickerChange(this.value)">
         <button onclick="changeDate(1)" class="p-1 hover:bg-gray-200 rounded text-gray-600"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
@@ -232,7 +241,7 @@
     </div>
   </div>
 
-  <!-- カレンダー大枠予定追加モーダル (種類選択追加) -->
+  <!-- カレンダー大枠予定追加モーダル -->
   <div id="calendarModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center">
     <div class="bg-white rounded-lg p-5 w-80 shadow-xl flex flex-col gap-3">
       <h3 class="text-sm font-bold text-gray-800">📅 カレンダー大枠予定を追加</h3>
@@ -385,6 +394,47 @@
     function getTodayStr() {
       const d = new Date();
       return d.toISOString().split('T')[0];
+    }
+
+    // --- エクスポート & インポート ---
+    function exportData() {
+      const exportObj = {
+        version: "1.0",
+        exportDate: new Date().toISOString(),
+        tasks: state.tasks,
+        calendarEvents: state.calendarEvents,
+        routines: state.routines
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `plansync_backup_${getTodayStr()}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    function importData(event) {
+      const fileReader = new FileReader();
+      const file = event.target.files[0];
+      if (!file) return;
+
+      fileReader.onload = (e) => {
+        try {
+          const parsedData = JSON.parse(e.target.result);
+          if (parsedData.tasks) state.tasks = parsedData.tasks;
+          if (parsedData.calendarEvents) state.calendarEvents = parsedData.calendarEvents;
+          if (parsedData.routines) state.routines = parsedData.routines;
+
+          renderAll();
+          alert('履歴データを正常に読み込みました！');
+        } catch (err) {
+          alert('ファイルの形式が正しくありません。JSONファイルを選択してください。');
+        }
+        event.target.value = '';
+      };
+      fileReader.readAsText(file);
     }
 
     // --- Firebase / Storage 同期 ---
@@ -705,7 +755,6 @@
           const matrixZone = z.dataset.zone;
           const lane = z.dataset.lane;
 
-          // Ctrlキー押下時は複製（コピー）
           if (state.isCtrlPressed) {
             const copyTask = JSON.parse(JSON.stringify(task));
             copyTask.id = 'task_' + Date.now();
@@ -722,7 +771,6 @@
             }
             state.tasks.push(copyTask);
           } else {
-            // 通常移動
             if (matrixZone) {
               task.matrixZone = matrixZone;
             } else if (lane) {
@@ -740,9 +788,7 @@
       });
     }
 
-    function toggleCopyBadges(show) {
-      renderAll();
-    }
+    function toggleCopyBadges(show) { renderAll(); }
 
     // --- 時間変更モーダル ---
     function openTimeEditModal(taskId) {
@@ -991,7 +1037,6 @@
       if (pop) pop.remove();
     }
 
-    // 色変更ポップアップの表示・切り替え
     function quickToggleColorPicker() {
       if (!state.selectedTaskId) return;
       
