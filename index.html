@@ -106,7 +106,7 @@
         <div class="p-3 border-b border-gray-200 bg-white">
           <div class="text-xs font-bold text-gray-700 mb-2 flex justify-between items-center">
             <span>タスク・インボックス</span>
-            <span class="text-[10px] font-normal text-gray-400">ドラッグして移動</span>
+            <span class="text-[10px] font-normal text-gray-400">Ctrl+ドラッグで複製</span>
           </div>
           <form onsubmit="handleAddTask(event)" class="flex flex-col gap-2">
             <input type="text" id="newTaskTitle" placeholder="新しいタスク名..." required class="text-xs p-2 border border-gray-300 rounded-md outline-none focus:border-blue-500">
@@ -232,13 +232,22 @@
     </div>
   </div>
 
-  <!-- カレンダー大枠予定追加モーダル -->
+  <!-- カレンダー大枠予定追加モーダル (種類選択追加) -->
   <div id="calendarModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center">
     <div class="bg-white rounded-lg p-5 w-80 shadow-xl flex flex-col gap-3">
       <h3 class="text-sm font-bold text-gray-800">📅 カレンダー大枠予定を追加</h3>
       <form onsubmit="handleSaveCalendarEvent(event)" class="flex flex-col gap-3">
         <input type="text" id="calEventTitle" placeholder="例: 全体戦略会議" required class="p-2 border border-gray-300 rounded text-xs">
-        <input type="date" id="calEventDate" required class="p-2 border border-gray-300 rounded text-xs">
+        
+        <div class="flex gap-2">
+          <select id="calEventCategory" class="p-2 border border-gray-300 rounded text-xs flex-1 bg-white">
+            <option value="meeting">👥 会議・打合せ</option>
+            <option value="desk">🖥️ デスクワーク</option>
+            <option value="field">👷 現場仕事</option>
+          </select>
+          <input type="date" id="calEventDate" required class="p-2 border border-gray-300 rounded text-xs flex-1">
+        </div>
+
         <div class="flex gap-2">
           <input type="time" id="calEventStart" step="900" value="10:00" required class="p-2 border border-gray-300 rounded text-xs flex-1">
           <input type="time" id="calEventEnd" step="900" value="12:00" required class="p-2 border border-gray-300 rounded text-xs flex-1">
@@ -251,7 +260,7 @@
     </div>
   </div>
 
-  <!-- ルーティン管理モーダル (曜日個別選択対応) -->
+  <!-- ルーティン管理モーダル -->
   <div id="routineModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center">
     <div class="bg-white rounded-lg p-5 w-96 shadow-xl flex flex-col gap-3 max-h-[85vh]">
       <h3 class="text-sm font-bold text-gray-800 flex items-center gap-1"><i data-lucide="repeat" class="w-4 h-4 text-purple-600"></i> ルーティンワークの設定</h3>
@@ -262,7 +271,6 @@
           <input type="time" id="rtEnd" value="09:30" required class="p-1.5 border border-gray-300 rounded text-xs flex-1">
         </div>
         
-        <!-- 曜日複数チェックボックス -->
         <div class="flex flex-col gap-1">
           <div class="flex justify-between items-center text-xs font-semibold text-gray-600">
             <span>繰り返し曜日</span>
@@ -494,7 +502,7 @@
       document.getElementById('inboxArea').style.display = isSched ? 'none' : 'flex';
     }
 
-    // --- 同期＆ルーティン処理（曜日指定対応） ---
+    // --- 同期＆ルーティン処理 ---
     function syncCalendarAndRoutines() {
       // 1. カレンダー大枠予定の同期
       const cEvents = state.calendarEvents.filter(e => e.date === state.currentDateStr);
@@ -509,20 +517,19 @@
             lane: 'plan',
             topMinutes: ce.startMinutes,
             color: '#3b82f6',
-            category: 'meeting',
+            category: ce.category || 'meeting',
             completed: false,
             matrixZone: 'q1'
           });
         }
       });
 
-      // 2. ルーティンの同期 (曜日チェック)
+      // 2. ルーティンの同期
       const currD = new Date(state.currentDateStr);
-      const dayOfWeek = currD.getDay(); // 0(日) 〜 6(土)
+      const dayOfWeek = currD.getDay();
 
       state.routines.forEach(rt => {
-        // 選択された曜日に含まれているか判定
-        const days = rt.days || [1, 2, 3, 4, 5]; // 互換性のため無ければ平日
+        const days = rt.days || [1, 2, 3, 4, 5];
         if (days.includes(dayOfWeek)) {
           const rtTaskId = `task_rt_${rt.id}_${state.currentDateStr}`;
           if (!state.tasks.some(t => t.id === rtTaskId)) {
@@ -586,7 +593,7 @@
     // --- タスクカードDOMの生成 ---
     function createTaskCardElement(task) {
       const card = document.createElement('div');
-      card.className = `task-card absolute left-1 right-1 bg-white border-l-4 rounded shadow-sm p-1.5 text-xs flex flex-col justify-between cursor-grab select-none overflow-hidden transition-all ${task.completed ? 'completed' : ''}`;
+      card.className = `task-card absolute left-1 right-1 bg-white border-l-4 rounded shadow-sm p-1.5 text-xs flex flex-col justify-between cursor-grab select-none overflow-visible transition-all ${task.completed ? 'completed' : ''}`;
       card.style.borderLeftColor = task.color || '#3b82f6';
       card.dataset.id = task.id;
       card.draggable = true;
@@ -612,6 +619,7 @@
           </div>
           <div class="resize-handle absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize hover:bg-blue-400/50"></div>
         ` : ''}
+        ${state.isCtrlPressed ? `<div class="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] px-1 rounded-full font-bold shadow">+ 複製</div>` : ''}
       `;
 
       if (task.lane !== 'inbox') {
@@ -665,11 +673,12 @@
       if (t) { t.completed = completed; renderAll(); }
     }
 
-    // --- ドラッグ＆ドロップ ---
+    // --- ドラッグ＆ドロップ & Ctrl複製 ---
     let draggedTaskId = null;
     function handleDragStart(e) {
       draggedTaskId = this.dataset.id;
       e.dataTransfer.setData('text/plain', draggedTaskId);
+      e.dataTransfer.effectAllowed = state.isCtrlPressed ? 'copy' : 'move';
     }
     function handleDragEnd() { draggedTaskId = null; }
 
@@ -682,7 +691,11 @@
       ];
 
       zones.forEach(z => {
-        z.addEventListener('dragover', (e) => e.preventDefault());
+        z.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = state.isCtrlPressed ? 'copy' : 'move';
+        });
+
         z.addEventListener('drop', (e) => {
           e.preventDefault();
           const id = e.dataTransfer.getData('text/plain') || draggedTaskId;
@@ -692,20 +705,43 @@
           const matrixZone = z.dataset.zone;
           const lane = z.dataset.lane;
 
-          if (matrixZone) {
-            task.matrixZone = matrixZone;
-          } else if (lane) {
-            task.lane = lane;
-            task.date = state.currentDateStr;
-            if (lane !== 'inbox') {
-              const rect = z.getBoundingClientRect();
-              const offsetY = e.clientY - rect.top;
-              task.topMinutes = Math.max(0, Math.floor(offsetY / SLOT_HEIGHT) * 15);
+          // Ctrlキー押下時は複製（コピー）
+          if (state.isCtrlPressed) {
+            const copyTask = JSON.parse(JSON.stringify(task));
+            copyTask.id = 'task_' + Date.now();
+            if (matrixZone) {
+              copyTask.matrixZone = matrixZone;
+            } else if (lane) {
+              copyTask.lane = lane;
+              copyTask.date = state.currentDateStr;
+              if (lane !== 'inbox') {
+                const rect = z.getBoundingClientRect();
+                const offsetY = e.clientY - rect.top;
+                copyTask.topMinutes = Math.max(0, Math.floor(offsetY / SLOT_HEIGHT) * 15);
+              }
+            }
+            state.tasks.push(copyTask);
+          } else {
+            // 通常移動
+            if (matrixZone) {
+              task.matrixZone = matrixZone;
+            } else if (lane) {
+              task.lane = lane;
+              task.date = state.currentDateStr;
+              if (lane !== 'inbox') {
+                const rect = z.getBoundingClientRect();
+                const offsetY = e.clientY - rect.top;
+                task.topMinutes = Math.max(0, Math.floor(offsetY / SLOT_HEIGHT) * 15);
+              }
             }
           }
           renderAll();
         });
       });
+    }
+
+    function toggleCopyBadges(show) {
+      renderAll();
     }
 
     // --- 時間変更モーダル ---
@@ -794,7 +830,7 @@
       }
     }
 
-    // --- ルーティン管理 (曜日選択対応) ---
+    // --- ルーティン管理 ---
     function openRoutineModal() { renderRoutineList(); document.getElementById('routineModal').style.display = 'flex'; }
     function closeRoutineModal() { document.getElementById('routineModal').style.display = 'none'; }
     
@@ -809,7 +845,6 @@
       const endStr = document.getElementById('rtEnd').value;
       const category = document.getElementById('rtCategory').value;
 
-      // 選択された曜日の数値配列を取得 [0, 1, 2...]
       const selectedDays = Array.from(document.querySelectorAll('.rt-day-cb:checked')).map(cb => parseInt(cb.value, 10));
 
       if (selectedDays.length === 0) {
@@ -928,6 +963,7 @@
     function handleSaveCalendarEvent(e) {
       e.preventDefault();
       const title = document.getElementById('calEventTitle').value.trim();
+      const category = document.getElementById('calEventCategory').value;
       const date = document.getElementById('calEventDate').value;
       const startStr = document.getElementById('calEventStart').value;
       const endStr = document.getElementById('calEventEnd').value;
@@ -937,13 +973,13 @@
       const startMinutes = sh * 60 + sm;
       const duration = Math.max(15, (eh * 60 + em) - startMinutes);
 
-      state.calendarEvents.push({ id: 'cal_' + Date.now(), title, date, startMinutes, duration });
+      state.calendarEvents.push({ id: 'cal_' + Date.now(), title, category, date, startMinutes, duration });
       saveData();
       closeCalendarModal();
       renderAll();
     }
 
-    // --- クイック操作 / リサイズ / 集計 ---
+    // --- クイック操作 / 色変更 / リサイズ / 集計 ---
     function selectTask(id) {
       state.selectedTaskId = id;
       document.getElementById('quickActionBar').style.display = 'flex';
@@ -951,7 +987,47 @@
     function closeQuickAction() {
       state.selectedTaskId = null;
       document.getElementById('quickActionBar').style.display = 'none';
+      const pop = document.getElementById('activeColorPickerPopover');
+      if (pop) pop.remove();
     }
+
+    // 色変更ポップアップの表示・切り替え
+    function quickToggleColorPicker() {
+      if (!state.selectedTaskId) return;
+      
+      const existing = document.getElementById('activeColorPickerPopover');
+      if (existing) { existing.remove(); return; }
+
+      const card = document.querySelector(`[data-id="${state.selectedTaskId}"]`);
+      if (!card) return;
+
+      const popover = document.createElement('div');
+      popover.id = 'activeColorPickerPopover';
+      popover.className = 'absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-lg p-2 shadow-xl grid grid-cols-4 gap-1.5 z-50';
+
+      COLOR_PALETTE.forEach(c => {
+        const btn = document.createElement('div');
+        btn.className = 'w-5 h-5 rounded-full cursor-pointer hover:scale-110 transition border border-black/10';
+        btn.style.backgroundColor = c;
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          changeTaskColor(state.selectedTaskId, c);
+          popover.remove();
+        };
+        popover.appendChild(btn);
+      });
+
+      card.appendChild(popover);
+    }
+
+    function changeTaskColor(taskId, color) {
+      const task = state.tasks.find(t => t.id === taskId);
+      if (task) {
+        task.color = color;
+        renderAll();
+      }
+    }
+
     function quickResize(delta) {
       if (!state.selectedTaskId) return;
       const t = state.tasks.find(x => x.id === state.selectedTaskId);
