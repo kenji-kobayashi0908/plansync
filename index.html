@@ -15,7 +15,6 @@
       --slot-height: 20px;
       --hour-height: 80px;
     }
-    /* スマホ画面の見切れ・スクロール防止 */
     body {
       height: 100vh;
       height: 100dvh;
@@ -174,7 +173,7 @@
       <div class="mb-2 bg-white p-2.5 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-1.5">
         <div class="flex justify-between items-center">
           <span class="text-xs font-bold text-gray-700 flex items-center gap-1">
-            <i data-lucide="inbox" class="w-3.5 h-3.5 text-indigo-500"></i> 未整理タスクトレイ
+            <i data-lucide="inbox" class="w-3.5 h-3.5 text-indigo-500"></i> 未整理タスクトレイ (未完了のみ表示)
           </span>
           <span class="text-[10px] text-gray-400">タップ/ドラッグで配置</span>
         </div>
@@ -664,6 +663,7 @@
       });
     }
 
+    // タスクカードDOMの生成 (計画(plan)レーンの場合はチェックボックス非表示)
     function createTaskCardElement(task) {
       const card = document.createElement('div');
       const catInfo = CATEGORY_MAP[task.category] || CATEGORY_MAP.desk;
@@ -677,9 +677,11 @@
       card.addEventListener('dragend', handleDragEnd);
       card.addEventListener('click', (e) => { e.stopPropagation(); selectTask(task.id); });
 
+      const showCheckbox = task.lane !== 'plan';
+
       card.innerHTML = `
         <div class="flex items-center gap-1 w-full">
-          <input type="checkbox" ${task.completed ? 'checked' : ''} class="task-checkbox rounded border-gray-300 text-blue-600 focus:ring-0 cursor-pointer" onclick="event.stopPropagation(); toggleTaskComplete('${task.id}', this.checked)">
+          ${showCheckbox ? `<input type="checkbox" ${task.completed ? 'checked' : ''} class="task-checkbox rounded border-gray-300 text-blue-600 focus:ring-0 cursor-pointer" onclick="event.stopPropagation(); toggleTaskComplete('${task.id}', this.checked)">` : ''}
           <span class="task-title-text font-bold text-gray-800 truncate flex-1">${task.title}</span>
           <span class="text-[9px] px-1 rounded ${catInfo.color}">${catInfo.icon}</span>
           ${task.matrixZone && task.matrixZone !== 'none' ? `<span class="text-[9px] bg-gray-100 font-bold px-1 rounded text-gray-600">${task.matrixZone.toUpperCase()}</span>` : ''}
@@ -845,7 +847,9 @@
       tray.innerHTML = '';
 
       const uniqueTasksMap = new Map();
-      state.tasks.forEach(task => {
+      const uncompletedTasks = state.tasks.filter(t => !t.completed);
+
+      uncompletedTasks.forEach(task => {
         if (!uniqueTasksMap.has(task.title)) {
           uniqueTasksMap.set(task.title, task);
         } else {
