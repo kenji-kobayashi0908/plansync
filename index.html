@@ -151,7 +151,11 @@
     <!-- カレンダー VIEW -->
     <div id="calendarView" class="hidden w-full h-full bg-white flex-col p-4 overflow-y-auto">
       <div class="flex justify-between items-center mb-4">
-        <h2 id="calendarMonthTitle" class="text-lg font-bold text-gray-800">2026年 9月</h2>
+        <div class="flex items-center gap-2">
+          <button onclick="changeCalendarMonth(-1)" class="p-1 hover:bg-gray-100 rounded border border-gray-200 text-gray-600"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+          <h2 id="calendarMonthTitle" class="text-lg font-bold text-gray-800 min-w-[120px] text-center"></h2>
+          <button onclick="changeCalendarMonth(1)" class="p-1 hover:bg-gray-100 rounded border border-gray-200 text-gray-600"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+        </div>
         <button onclick="openCalendarModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-md flex items-center gap-1">
           <i data-lucide="plus" class="w-4 h-4"></i> 大枠予定を追加
         </button>
@@ -512,6 +516,14 @@
       renderAll();
     }
 
+    function changeCalendarMonth(delta) {
+      const d = new Date(state.currentDateStr);
+      d.setMonth(d.getMonth() + delta);
+      state.currentDateStr = d.toISOString().split('T')[0];
+      updateDateDisplay();
+      renderAll();
+    }
+
     function goToToday() {
       state.currentDateStr = getTodayStr();
       updateDateDisplay();
@@ -611,6 +623,7 @@
       renderTimelineTasks();
       renderInboxTasks();
       calculateTotals();
+      if (state.currentView === 'calendar') renderCalendarView();
       if (state.currentView === 'matrix') renderMatrixView();
       if (!skipSave) saveData();
     }
@@ -818,7 +831,6 @@
       closeTimeEditModal();
     }
 
-    // マトリクス描画（同一タイトルの重複表示を防止）
     function renderMatrixView() {
       ['q1', 'q2', 'q3', 'q4'].forEach(q => {
         document.getElementById(`matrixZone${q.toUpperCase()}`).innerHTML = '';
@@ -826,13 +838,11 @@
       const tray = document.getElementById('matrixInboxTray');
       tray.innerHTML = '';
 
-      // タイトル単位で重複を排除（同じタスクが計画・実績の両方にあっても1つだけ表示）
       const uniqueTasksMap = new Map();
       state.tasks.forEach(task => {
         if (!uniqueTasksMap.has(task.title)) {
           uniqueTasksMap.set(task.title, task);
         } else {
-          // 計画(plan)やインボックス(inbox)側のタスク定義を優先
           const existing = uniqueTasksMap.get(task.title);
           if (existing.lane === 'actual' && task.lane !== 'actual') {
             uniqueTasksMap.set(task.title, task);
@@ -868,7 +878,6 @@
       });
     }
 
-    // 同名タスクすべてのマトリクス領域をまとめて更新
     function setMatrixZoneByTitle(title, zone) {
       state.tasks.forEach(t => {
         if (t.title === title) {
@@ -972,11 +981,14 @@
       closeSyncModal();
     }
 
+    // カレンダー描画（動的年月対応）
     function renderCalendarView() {
       const grid = document.getElementById('calendarGrid');
       grid.innerHTML = '';
-      const curr = new Date(state.currentDateStr);
-      const y = curr.getFullYear(), m = curr.getMonth();
+      const parts = state.currentDateStr.split('-');
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1; // 0-indexed
+
       document.getElementById('calendarMonthTitle').textContent = `${y}年 ${m + 1}月`;
 
       ['日','月','火','水','木','金','土'].forEach(d => {
