@@ -173,7 +173,7 @@
       <div class="mb-2 bg-white p-2.5 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-1.5">
         <div class="flex justify-between items-center">
           <span class="text-xs font-bold text-gray-700 flex items-center gap-1">
-            <i data-lucide="inbox" class="w-3.5 h-3.5 text-indigo-500"></i> 未整理タスクトレイ (未完了のみ表示)
+            <i data-lucide="inbox" class="w-3.5 h-3.5 text-indigo-500"></i> 未整理タスクトレイ (単発・未完了のみ)
           </span>
           <span class="text-[10px] text-gray-400">タップ/ドラッグで配置</span>
         </div>
@@ -663,7 +663,6 @@
       });
     }
 
-    // タスクカードDOMの生成 (計画(plan)レーンの場合はチェックボックス非表示)
     function createTaskCardElement(task) {
       const card = document.createElement('div');
       const catInfo = CATEGORY_MAP[task.category] || CATEGORY_MAP.desk;
@@ -839,6 +838,7 @@
       closeTimeEditModal();
     }
 
+    // マトリクス描画（未完了タスクかつルーティンタスク(task_rt_)を除外して表示）
     function renderMatrixView() {
       ['q1', 'q2', 'q3', 'q4'].forEach(q => {
         document.getElementById(`matrixZone${q.toUpperCase()}`).innerHTML = '';
@@ -847,7 +847,9 @@
       tray.innerHTML = '';
 
       const uniqueTasksMap = new Map();
-      const uncompletedTasks = state.tasks.filter(t => !t.completed);
+      
+      // 未完了 かつ ルーティン自動生成タスク(task_rt_)以外のタスクを抽出し重複排除
+      const uncompletedTasks = state.tasks.filter(t => !t.completed && !t.id.startsWith('task_rt_'));
 
       uncompletedTasks.forEach(task => {
         if (!uniqueTasksMap.has(task.title)) {
