@@ -173,7 +173,7 @@
       <div class="mb-2 bg-white p-2.5 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-1.5">
         <div class="flex justify-between items-center">
           <span class="text-xs font-bold text-gray-700 flex items-center gap-1">
-            <i data-lucide="inbox" class="w-3.5 h-3.5 text-indigo-500"></i> 未整理タスクトレイ (未完了のInboxタスクのみ)
+            <i data-lucide="inbox" class="w-3.5 h-3.5 text-indigo-500"></i> 未整理タスクトレイ (単発・未完了・未配置タスク)
           </span>
           <span class="text-[10px] text-gray-400">タップ/ドラッグで配置</span>
         </div>
@@ -595,7 +595,8 @@
             topMinutes: ce.startMinutes,
             category: ce.category || 'meeting',
             completed: false,
-            matrixZone: 'q1'
+            matrixZone: 'q1',
+            isCalendarEvent: true
           });
         }
       });
@@ -617,7 +618,8 @@
               topMinutes: rt.startMinutes,
               category: rt.category || 'desk',
               completed: false,
-              matrixZone: 'q2'
+              matrixZone: 'q2',
+              isRoutine: true
             });
           }
         }
@@ -839,7 +841,7 @@
       closeTimeEditModal();
     }
 
-    // マトリクス描画（済・予定・ルーティン・カレンダー大枠を除外）
+    // マトリクス描画（済・予定・ルーティン・カレンダー大枠を厳密除外）
     function renderMatrixView() {
       ['q1', 'q2', 'q3', 'q4'].forEach(q => {
         document.getElementById(`matrixZone${q.toUpperCase()}`).innerHTML = '';
@@ -849,13 +851,14 @@
 
       const uniqueTasksMap = new Map();
       
-      // 除外条件: 完了済み、ルーティン(task_rt_)、カレンダー大枠(task_cal_)、計画(plan)レーン配置済み
-      const filteredTasks = state.tasks.filter(t => 
-        !t.completed && 
-        !t.id.startsWith('task_rt_') && 
-        !t.id.startsWith('task_cal_') && 
-        t.lane !== 'plan'
-      );
+      const filteredTasks = state.tasks.filter(t => {
+        const isCompleted = t.completed;
+        const isRoutine = t.isRoutine || t.id.startsWith('task_rt_');
+        const isCalEvent = t.isCalendarEvent || t.id.startsWith('task_cal_');
+        const isPlanLane = t.lane === 'plan';
+
+        return !isCompleted && !isRoutine && !isCalEvent && !isPlanLane;
+      });
 
       filteredTasks.forEach(task => {
         if (!uniqueTasksMap.has(task.title)) {
