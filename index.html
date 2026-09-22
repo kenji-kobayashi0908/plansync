@@ -754,7 +754,12 @@
       renderAll();
     }
 
+    // タスク削除処理（カレンダー大枠予定由来のタスク削除時にも元データを連動消去）
     function deleteTask(taskId) {
+      const taskToDelete = state.tasks.find(t => t.id === taskId);
+      if (taskToDelete && taskToDelete.calendarEventId) {
+        state.calendarEvents = state.calendarEvents.filter(ce => ce.id !== taskToDelete.calendarEventId);
+      }
       state.tasks = state.tasks.filter(t => t.id !== taskId);
       renderAll();
     }
@@ -853,7 +858,6 @@
         task.topMinutes = startMins;
         task.duration = Math.max(15, endMins - startMins);
         
-        // カレンダー大枠予定由来のタスクだった場合、元のイベントデータも同期して更新
         if (task.calendarEventId) {
           const calEv = state.calendarEvents.find(ce => ce.id === task.calendarEventId);
           if (calEv) {
@@ -1062,8 +1066,11 @@
         const events = state.calendarEvents.filter(e => e.date === dateStr);
         events.forEach(ev => {
           const pill = document.createElement('div');
-          pill.className = "bg-blue-100 text-blue-800 text-[9px] px-1 rounded truncate font-medium";
-          pill.textContent = ev.title;
+          pill.className = "bg-blue-100 text-blue-800 text-[9px] px-1 rounded truncate font-medium flex justify-between items-center";
+          pill.innerHTML = `
+            <span class="truncate">${ev.title}</span>
+            <button onclick="event.stopPropagation(); deleteCalendarEvent('${ev.id}')" class="text-gray-400 hover:text-red-500 ml-1">✕</button>
+          `;
           cell.appendChild(pill);
         });
 
@@ -1075,6 +1082,13 @@
         };
         grid.appendChild(cell);
       }
+    }
+
+    // カレンダー大枠予定の個別削除関数
+    function deleteCalendarEvent(calEvId) {
+      state.calendarEvents = state.calendarEvents.filter(ce => ce.id !== calEvId);
+      state.tasks = state.tasks.filter(t => t.calendarEventId !== calEvId);
+      renderAll();
     }
 
     function openCalendarModal() {
@@ -1112,7 +1126,6 @@
       if (pop) pop.remove();
     }
 
-    // タイトル変更（カレンダー大枠予定由来のタスク変更にも完全連動）
     function quickEditTitle() {
       if (!state.selectedTaskId) return;
       const task = state.tasks.find(t => t.id === state.selectedTaskId);
@@ -1123,7 +1136,6 @@
         const trimmedTitle = newTitle.trim();
         task.title = trimmedTitle;
 
-        // カレンダー由来タスクの場合、元のイベントタイトルも更新
         if (task.calendarEventId) {
           const calEv = state.calendarEvents.find(ce => ce.id === task.calendarEventId);
           if (calEv) calEv.title = trimmedTitle;
@@ -1187,7 +1199,7 @@
       if (t) {
         const copy = JSON.parse(JSON.stringify(t));
         copy.id = 'task_' + Date.now();
-        delete copy.calendarEventId; // 複製されたものは単発タスク化
+        delete copy.calendarEventId;
         state.tasks.push(copy);
         renderAll();
       }
