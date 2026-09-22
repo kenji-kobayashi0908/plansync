@@ -530,6 +530,7 @@
       renderAll();
     }
 
+    // 今日にジャンプ（表示更新も連動）
     function goToToday() {
       state.currentDateStr = getTodayStr();
       updateDateDisplay();
@@ -876,7 +877,7 @@
       closeTimeEditModal();
     }
 
-    // マトリクス描画 (カレンダー大枠由来タスクも、計画(plan)欄以外にあれば未完了である限り表示)
+    // マトリクス描画 (計画欄の予定タスク以外、未完了タスクを表示)
     function renderMatrixView() {
       ['q1', 'q2', 'q3', 'q4'].forEach(q => {
         document.getElementById(`matrixZone${q.toUpperCase()}`).innerHTML = '';
