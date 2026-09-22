@@ -662,6 +662,10 @@
       inboxTasks.forEach(task => {
         const card = createTaskCardElement(task);
         card.style.height = 'auto';
+        card.style.position = 'relative';
+        card.style.top = '0';
+        card.style.left = '0';
+        card.style.right = '0';
         inboxList.appendChild(card);
       });
     }
@@ -670,7 +674,7 @@
       const card = document.createElement('div');
       const catInfo = CATEGORY_MAP[task.category] || CATEGORY_MAP.desk;
 
-      card.className = `task-card absolute left-1 right-1 bg-white border-l-4 rounded shadow-sm p-1.5 text-xs flex flex-col justify-between cursor-grab select-none overflow-visible transition-all ${task.completed ? 'completed' : ''}`;
+      card.className = `task-card bg-white border-l-4 rounded shadow-sm p-1.5 text-xs flex flex-col justify-between cursor-grab select-none overflow-hidden transition-all ${task.lane !== 'inbox' ? 'absolute left-1 right-1' : 'w-full mb-1'}`;
       card.style.borderLeftColor = catInfo.border;
       card.dataset.id = task.id;
       card.draggable = true;
@@ -682,13 +686,13 @@
       const showCheckbox = task.lane !== 'plan';
 
       card.innerHTML = `
-        <div class="flex items-center gap-1 w-full">
-          ${showCheckbox ? `<input type="checkbox" ${task.completed ? 'checked' : ''} class="task-checkbox rounded border-gray-300 text-blue-600 focus:ring-0 cursor-pointer" onclick="event.stopPropagation(); toggleTaskComplete('${task.id}', this.checked)">` : ''}
-          <span class="task-title-text font-bold text-gray-800 truncate flex-1">${task.title}</span>
-          <span class="text-[9px] px-1 rounded ${catInfo.color}">${catInfo.icon}</span>
-          ${task.matrixZone && task.matrixZone !== 'none' ? `<span class="text-[9px] bg-gray-100 font-bold px-1 rounded text-gray-600">${task.matrixZone.toUpperCase()}</span>` : ''}
-          <button onclick="event.stopPropagation(); openTimeEditModal('${task.id}')" class="text-gray-400 hover:text-gray-600 text-[10px]">⏰</button>
-          <button onclick="event.stopPropagation(); deleteTask('${task.id}')" class="text-gray-400 hover:text-red-500 text-[10px]">✕</button>
+        <div class="flex items-center gap-1 w-full min-w-0">
+          ${showCheckbox ? `<input type="checkbox" ${task.completed ? 'checked' : ''} class="task-checkbox rounded border-gray-300 text-blue-600 focus:ring-0 cursor-pointer flex-shrink-0" onclick="event.stopPropagation(); toggleTaskComplete('${task.id}', this.checked)">` : ''}
+          <span class="task-title-text font-bold text-gray-800 truncate flex-1 min-w-0">${task.title}</span>
+          <span class="text-[9px] px-1 rounded flex-shrink-0 ${catInfo.color}">${catInfo.icon}</span>
+          ${task.matrixZone && task.matrixZone !== 'none' ? `<span class="text-[9px] bg-gray-100 font-bold px-1 rounded text-gray-600 flex-shrink-0">${task.matrixZone.toUpperCase()}</span>` : ''}
+          <button onclick="event.stopPropagation(); openTimeEditModal('${task.id}')" class="text-gray-400 hover:text-gray-600 text-[10px] flex-shrink-0">⏰</button>
+          <button onclick="event.stopPropagation(); deleteTask('${task.id}')" class="text-gray-400 hover:text-red-500 text-[10px] flex-shrink-0">✕</button>
         </div>
         ${task.lane !== 'inbox' ? `
           <div class="text-[10px] text-gray-400 flex justify-between items-center mt-0.5">
@@ -696,7 +700,7 @@
           </div>
           <div class="resize-handle absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize hover:bg-blue-400/50"></div>
         ` : ''}
-        ${state.isCtrlPressed ? `<div class="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] px-1 rounded-full font-bold shadow">+ 複製</div>` : ''}
+        ${state.isCtrlPressed ? `<div class="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] px-1 rounded-full font-bold shadow z-10">+ 複製</div>` : ''}
       `;
 
       if (task.lane !== 'inbox') {
@@ -726,14 +730,17 @@
 
     function handleAddTask(e) {
       e.preventDefault();
-      const title = document.getElementById('newTaskTitle').value.trim();
+      const titleInput = document.getElementById('newTaskTitle');
+      const title = titleInput.value.trim();
       const dur = parseInt(document.getElementById('newTaskDuration').value, 10);
       const cat = document.getElementById('newTaskCategory').value;
       const zone = document.getElementById('newTaskMatrixZone').value;
 
+      if (!title) return;
+
       state.tasks.push({
         id: 'task_' + Date.now(),
-        title,
+        title: title,
         duration: dur,
         category: cat,
         matrixZone: zone,
@@ -743,7 +750,7 @@
         completed: false
       });
 
-      document.getElementById('newTaskTitle').value = '';
+      titleInput.value = '';
       renderAll();
     }
 
@@ -850,7 +857,7 @@
       closeTimeEditModal();
     }
 
-    // マトリクス描画 (いつの予定に割り振られているかを表示する日付バッジ付き)
+    // マトリクス描画 (安全・レイアウト安定化版)
     function renderMatrixView() {
       ['q1', 'q2', 'q3', 'q4'].forEach(q => {
         document.getElementById(`matrixZone${q.toUpperCase()}`).innerHTML = '';
@@ -887,9 +894,9 @@
         const dateBadgeText = task.date ? `📅 ${formatDateShort(task.date)}` : '未割り当て';
 
         card.innerHTML = `
-          <div class="flex justify-between items-center gap-1">
-            <span class="font-bold truncate text-gray-800 flex-1">${task.title}</span>
-            <div class="flex gap-0.5">
+          <div class="flex justify-between items-center gap-1 w-full min-w-0">
+            <span class="font-bold truncate text-gray-800 flex-1 min-w-0">${task.title}</span>
+            <div class="flex gap-0.5 flex-shrink-0">
               <button onclick="setMatrixZoneByTitle('${task.title}', 'q1')" class="px-1 py-0.5 text-[9px] bg-red-100 hover:bg-red-200 text-red-700 rounded font-bold">Q1</button>
               <button onclick="setMatrixZoneByTitle('${task.title}', 'q2')" class="px-1 py-0.5 text-[9px] bg-blue-100 hover:bg-blue-200 text-blue-700 rounded font-bold">Q2</button>
               <button onclick="setMatrixZoneByTitle('${task.title}', 'q3')" class="px-1 py-0.5 text-[9px] bg-amber-100 hover:bg-amber-200 text-amber-700 rounded font-bold">Q3</button>
@@ -921,10 +928,10 @@
 
     function quickAddMatrixTask(zone) {
       const title = prompt('タスク名を入力してください:');
-      if (title) {
+      if (title && title.trim() !== '') {
         state.tasks.push({
           id: 'task_' + Date.now(),
-          title,
+          title: title.trim(),
           duration: 30,
           category: 'desk',
           matrixZone: zone,
