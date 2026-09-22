@@ -876,7 +876,7 @@
       closeTimeEditModal();
     }
 
-    // マトリクス描画 (計画(plan)欄にある予定は除外、実績(actual)欄に配置された未完了タスクは表示)
+    // マトリクス描画 (カレンダー大枠由来タスクも、計画(plan)欄以外にあれば未完了である限り表示)
     function renderMatrixView() {
       ['q1', 'q2', 'q3', 'q4'].forEach(q => {
         document.getElementById(`matrixZone${q.toUpperCase()}`).innerHTML = '';
@@ -889,10 +889,9 @@
       const filteredTasks = state.tasks.filter(t => {
         const isCompleted = t.completed;
         const isRoutine = t.isRoutine || t.id.startsWith('task_rt_') || t.title.includes('[ルーティン]') || t.title.includes('[定例]');
-        const isCalEvent = t.isCalendarEvent || t.id.startsWith('task_cal_');
-        const isPlanLane = t.lane === 'plan'; // 計画欄に配置されている場合のみ除外（実績(actual)にある未完了タスクは表示）
+        const isPlanLane = t.lane === 'plan';
 
-        return !isCompleted && !isRoutine && !isCalEvent && !isPlanLane;
+        return !isCompleted && !isRoutine && !isPlanLane;
       });
 
       filteredTasks.forEach(task => {
