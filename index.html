@@ -852,12 +852,20 @@
         const endMins = eh * 60 + em;
         task.topMinutes = startMins;
         task.duration = Math.max(15, endMins - startMins);
+        
+        // カレンダー大枠予定由来のタスクだった場合、元のイベントデータも同期して更新
+        if (task.calendarEventId) {
+          const calEv = state.calendarEvents.find(ce => ce.id === task.calendarEventId);
+          if (calEv) {
+            calEv.startMinutes = startMins;
+            calEv.duration = task.duration;
+          }
+        }
         renderAll();
       }
       closeTimeEditModal();
     }
 
-    // マトリクス描画 (安全・レイアウト安定化版)
     function renderMatrixView() {
       ['q1', 'q2', 'q3', 'q4'].forEach(q => {
         document.getElementById(`matrixZone${q.toUpperCase()}`).innerHTML = '';
@@ -1104,6 +1112,7 @@
       if (pop) pop.remove();
     }
 
+    // タイトル変更（カレンダー大枠予定由来のタスク変更にも完全連動）
     function quickEditTitle() {
       if (!state.selectedTaskId) return;
       const task = state.tasks.find(t => t.id === state.selectedTaskId);
@@ -1111,7 +1120,15 @@
 
       const newTitle = prompt('新しいタスク名を入力してください:', task.title);
       if (newTitle && newTitle.trim() !== '') {
-        task.title = newTitle.trim();
+        const trimmedTitle = newTitle.trim();
+        task.title = trimmedTitle;
+
+        // カレンダー由来タスクの場合、元のイベントタイトルも更新
+        if (task.calendarEventId) {
+          const calEv = state.calendarEvents.find(ce => ce.id === task.calendarEventId);
+          if (calEv) calEv.title = trimmedTitle;
+        }
+
         renderAll();
       }
     }
@@ -1155,7 +1172,14 @@
     function quickResize(delta) {
       if (!state.selectedTaskId) return;
       const t = state.tasks.find(x => x.id === state.selectedTaskId);
-      if (t) { t.duration = Math.max(15, t.duration + delta); renderAll(); }
+      if (t) {
+        t.duration = Math.max(15, t.duration + delta);
+        if (t.calendarEventId) {
+          const calEv = state.calendarEvents.find(ce => ce.id === t.calendarEventId);
+          if (calEv) calEv.duration = t.duration;
+        }
+        renderAll();
+      }
     }
     function quickDuplicate() {
       if (!state.selectedTaskId) return;
@@ -1163,6 +1187,7 @@
       if (t) {
         const copy = JSON.parse(JSON.stringify(t));
         copy.id = 'task_' + Date.now();
+        delete copy.calendarEventId; // 複製されたものは単発タスク化
         state.tasks.push(copy);
         renderAll();
       }
@@ -1186,6 +1211,10 @@
       function onMouseMove(mv) {
         const deltaMins = Math.round((mv.clientY - startY) / SLOT_HEIGHT) * 15;
         task.duration = Math.max(15, startDur + deltaMins);
+        if (task.calendarEventId) {
+          const calEv = state.calendarEvents.find(ce => ce.id === task.calendarEventId);
+          if (calEv) calEv.duration = task.duration;
+        }
         renderAll();
       }
       function onMouseUp() {
