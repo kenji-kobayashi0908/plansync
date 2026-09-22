@@ -173,7 +173,7 @@
       <div class="mb-2 bg-white p-2.5 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-1.5">
         <div class="flex justify-between items-center">
           <span class="text-xs font-bold text-gray-700 flex items-center gap-1">
-            <i data-lucide="inbox" class="w-3.5 h-3.5 text-indigo-500"></i> 未整理タスクトレイ (単発・未完了・未配置タスク)
+            <i data-lucide="inbox" class="w-3.5 h-3.5 text-indigo-500"></i> 未整理タスクトレイ (単発・未完了タスク)
           </span>
           <span class="text-[10px] text-gray-400">タップ/ドラッグで配置</span>
         </div>
@@ -584,7 +584,8 @@
     function syncCalendarAndRoutines() {
       const cEvents = state.calendarEvents.filter(e => e.date === state.currentDateStr);
       cEvents.forEach(ce => {
-        if (!state.tasks.some(t => t.calendarEventId === ce.id)) {
+        let task = state.tasks.find(t => t.calendarEventId === ce.id);
+        if (!task) {
           state.tasks.push({
             id: 'task_cal_' + ce.id,
             calendarEventId: ce.id,
@@ -595,9 +596,11 @@
             topMinutes: ce.startMinutes,
             category: ce.category || 'meeting',
             completed: false,
-            matrixZone: 'q1',
+            matrixZone: ce.matrixZone || 'q1',
             isCalendarEvent: true
           });
+        } else {
+          task.category = ce.category || task.category;
         }
       });
 
@@ -754,7 +757,6 @@
       renderAll();
     }
 
-    // タスク削除処理（カレンダー大枠予定由来のタスク削除時にも元データを連動消去）
     function deleteTask(taskId) {
       const taskToDelete = state.tasks.find(t => t.id === taskId);
       if (taskToDelete && taskToDelete.calendarEventId) {
@@ -818,6 +820,10 @@
           } else {
             if (matrixZone) {
               task.matrixZone = matrixZone;
+              if (task.calendarEventId) {
+                const calEv = state.calendarEvents.find(ce => ce.id === task.calendarEventId);
+                if (calEv) calEv.matrixZone = matrixZone;
+              }
             } else if (lane) {
               task.lane = lane;
               task.date = state.currentDateStr;
@@ -870,6 +876,7 @@
       closeTimeEditModal();
     }
 
+    // マトリクス描画 (計画(plan)欄にある予定は除外、実績(actual)欄に配置された未完了タスクは表示)
     function renderMatrixView() {
       ['q1', 'q2', 'q3', 'q4'].forEach(q => {
         document.getElementById(`matrixZone${q.toUpperCase()}`).innerHTML = '';
@@ -883,7 +890,7 @@
         const isCompleted = t.completed;
         const isRoutine = t.isRoutine || t.id.startsWith('task_rt_') || t.title.includes('[ルーティン]') || t.title.includes('[定例]');
         const isCalEvent = t.isCalendarEvent || t.id.startsWith('task_cal_');
-        const isPlanLane = t.lane === 'plan';
+        const isPlanLane = t.lane === 'plan'; // 計画欄に配置されている場合のみ除外（実績(actual)にある未完了タスクは表示）
 
         return !isCompleted && !isRoutine && !isCalEvent && !isPlanLane;
       });
@@ -933,6 +940,10 @@
       state.tasks.forEach(t => {
         if (t.title === title) {
           t.matrixZone = zone;
+          if (t.calendarEventId) {
+            const calEv = state.calendarEvents.find(ce => ce.id === t.calendarEventId);
+            if (calEv) calEv.matrixZone = zone;
+          }
         }
       });
       renderAll();
@@ -1084,7 +1095,6 @@
       }
     }
 
-    // カレンダー大枠予定の個別削除関数
     function deleteCalendarEvent(calEvId) {
       state.calendarEvents = state.calendarEvents.filter(ce => ce.id !== calEvId);
       state.tasks = state.tasks.filter(t => t.calendarEventId !== calEvId);
@@ -1177,6 +1187,10 @@
       const task = state.tasks.find(t => t.id === taskId);
       if (task) {
         task.category = category;
+        if (task.calendarEventId) {
+          const calEv = state.calendarEvents.find(ce => ce.id === task.calendarEventId);
+          if (calEv) calEv.category = category;
+        }
         renderAll();
       }
     }
